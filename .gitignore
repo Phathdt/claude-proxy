@@ -1,0 +1,15 @@
+/coverage.*
+/bin
+
+main
+claude-proxy
+
+.serena/cache
+.claude
+.claude_sessions
+plans
+
+# Configuration files that may contain sensitive data
+config.yaml
+*.env
+.env*
