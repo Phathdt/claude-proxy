@@ -1,15 +1,22 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"os"
 
+	"claude-proxy/cmd/api"
 	mycli "claude-proxy/cli"
 
 	"github.com/urfave/cli/v2"
 )
 
+//go:embed all:frontend/dist
+var frontendFS embed.FS
+
 func main() {
+	// Set the frontend FS for the API server
+	api.FrontendFS = frontendFS
 	app := &cli.App{
 		Name:  "claude-proxy",
 		Usage: "Wallet risk assessment API service",

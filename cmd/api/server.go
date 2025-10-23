@@ -2,8 +2,12 @@ package api
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io/fs"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"claude-proxy/config"
@@ -13,6 +17,9 @@ import (
 	"go.uber.org/fx"
 )
 
+// FrontendFS is set from main package with the embedded frontend files
+var FrontendFS embed.FS
+
 // StartAPIServer starts the API server component
 func StartAPIServer(
 	lc fx.Lifecycle,
@@ -20,13 +27,56 @@ func StartAPIServer(
 	cfg *config.Config,
 	appLogger sctx.Logger,
 ) {
-	// Global health check
-	engine.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "ok",
-			"timestamp": time.Now().Unix(),
+	// API routes group with /api prefix
+	api := engine.Group("/api")
+	{
+		// Health check endpoint
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"status":    "ok",
+				"timestamp": time.Now().Unix(),
+			})
 		})
-	})
+		// Add more API routes here
+	}
+
+	// Serve static frontend files
+	staticFS, err := fs.Sub(FrontendFS, "frontend/dist")
+	if err == nil {
+		engine.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			if path == "/" {
+				path = "/index.html"
+			}
+
+			// Try to serve the file
+			filePath := path[1:] // Remove leading slash
+			file, err := staticFS.Open(filePath)
+			if err != nil {
+				// If file not found, serve index.html for SPA routing
+				indexFile, err := staticFS.Open("index.html")
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "page not found"})
+					return
+				}
+				defer indexFile.Close()
+				c.DataFromReader(http.StatusOK, -1, "text/html; charset=utf-8", indexFile, nil)
+				return
+			}
+			defer file.Close()
+
+			// Detect MIME type from file extension
+			ext := filepath.Ext(filePath)
+			contentType := mime.TypeByExtension(ext)
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+
+			// Serve the file with proper MIME type
+			stat, _ := file.Stat()
+			c.DataFromReader(http.StatusOK, stat.Size(), contentType, file, nil)
+		})
+	}
 
 	port := cfg.Server.Port
 	server := &http.Server{
@@ -38,7 +88,7 @@ func StartAPIServer(
 		OnStart: func(ctx context.Context) error {
 			appLogger.Withs(sctx.Fields{"port": port}).Info("Starting API Server")
 			appLogger.Info("API Endpoints:")
-			appLogger.Info("  GET  /health - General health check")
+			appLogger.Info("  GET  /api/health - General health check")
 
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

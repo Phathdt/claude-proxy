@@ -13,3 +13,9 @@ plans
 config.yaml
 *.env
 .env*
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/.pnpm-store
+frontend/pnpm-lock.yaml
