@@ -11,9 +11,7 @@ import (
 	"claude-proxy/pkg/telegram"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	sctx "github.com/phathdt/service-context"
-	"github.com/phathdt/service-context/component/pgxc"
 	"go.uber.org/fx"
 )
 
@@ -24,7 +22,6 @@ var CoreProviders = fx.Options(
 		func(cfg *config.Config) (sctx.ServiceContext, sctx.Logger, error) {
 			return InitServiceContext(cfg)
 		},
-		NewDatabase,
 	),
 )
 
@@ -72,11 +69,6 @@ func InitServiceContext(cfg *config.Config) (sctx.ServiceContext, sctx.Logger, e
 	}
 
 	return sc, sctx.GlobalLogger().GetLogger("main"), nil
-}
-
-// NewDatabase creates a new database connection from service context
-func NewDatabase(sc sctx.ServiceContext) (*pgxpool.Pool, error) {
-	return sc.MustGet("postgres").(pgxc.PgxComp).GetConn(), nil
 }
 
 // NewGinEngine creates a new Gin engine with middleware
