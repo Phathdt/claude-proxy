@@ -18,4 +18,3 @@ config.yaml
 frontend/node_modules
 frontend/dist
 frontend/.pnpm-store
-frontend/pnpm-lock.yaml
