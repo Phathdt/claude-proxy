@@ -8,26 +8,37 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"claude-proxy/pkg/account"
+	"github.com/google/uuid"
+
+	"claude-proxy/modules/proxy/application/dto"
+	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/pkg/oauth"
 )
 
 // OAuthHandler handles OAuth-related endpoints
 type OAuthHandler struct {
-	oauthService   *oauth.Service
-	accountManager *account.Manager
-	claudeBaseURL  string
-	challenges     map[string]*oauth.PKCEChallenge // state -> challenge
-	challengesMu   sync.Mutex
+	oauthService  *oauth.Service
+	accountRepo   interfaces.AccountRepository
+	accountSvc    interfaces.AccountService
+	claudeBaseURL string
+	challenges    map[string]*oauth.PKCEChallenge // state -> challenge
+	challengesMu  sync.Mutex
 }
 
 // NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(oauthService *oauth.Service, accountManager *account.Manager, claudeBaseURL string) *OAuthHandler {
+func NewOAuthHandler(
+	oauthService *oauth.Service,
+	accountRepo interfaces.AccountRepository,
+	accountSvc interfaces.AccountService,
+	claudeBaseURL string,
+) *OAuthHandler {
 	return &OAuthHandler{
-		oauthService:   oauthService,
-		accountManager: accountManager,
-		claudeBaseURL:  claudeBaseURL,
-		challenges:     make(map[string]*oauth.PKCEChallenge),
+		oauthService:  oauthService,
+		accountRepo:   accountRepo,
+		accountSvc:    accountSvc,
+		claudeBaseURL: claudeBaseURL,
+		challenges:    make(map[string]*oauth.PKCEChallenge),
 	}
 }
 
@@ -74,6 +85,7 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 
 // ExchangeCodeRequest represents the request body for code exchange
 type ExchangeCodeRequest struct {
+	Name         string `json:"name" binding:"required"`        // Account name
 	Code         string `json:"code" binding:"required"`
 	State        string `json:"state" binding:"required"`
 	CodeVerifier string `json:"code_verifier" binding:"required"`
@@ -155,15 +167,22 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 		}
 	}
 
-	// Save account
-	acc := &account.Account{
+	// Create account entity
+	now := time.Now()
+	acc := &entities.Account{
+		ID:               uuid.New().String(),
+		Name:             req.Name,
 		OrganizationUUID: orgUUID,
 		AccessToken:      tokenResp.AccessToken,
 		RefreshToken:     tokenResp.RefreshToken,
-		ExpiresAt:        time.Now().Unix() + int64(tokenResp.ExpiresIn),
+		ExpiresAt:        time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		Status:           entities.AccountStatusActive,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
-	if err := h.accountManager.SaveAccount(acc); err != nil {
+	// Save to repository
+	if err := h.accountRepo.Create(ctx, acc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"type":    "oauth_error",
@@ -173,11 +192,13 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 		return
 	}
 
+	// Convert to response DTO
+	accountResponse := dto.ToAccountResponse(acc)
+
 	c.JSON(http.StatusOK, gin.H{
-		"success":           true,
-		"message":           "Account configured successfully",
-		"organization_uuid": orgUUID,
-		"expires_at":        acc.ExpiresAt,
+		"success": true,
+		"message": "Account configured successfully",
+		"account": accountResponse,
 	})
 }
 

@@ -50,6 +50,7 @@ var CloveProviders = fx.Options(
 		NewProxyHandler,
 		NewAuthHandler,
 		NewAccountHandler,
+		NewOAuthHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -341,4 +342,14 @@ func NewAccountHandler(
 	accountRepo interfaces.AccountRepository,
 ) *handlers.AccountHandler {
 	return handlers.NewAccountHandler(accountService, accountRepo)
+}
+
+// NewOAuthHandler creates a new OAuth handler
+func NewOAuthHandler(
+	oauthService *oauth.Service,
+	accountRepo interfaces.AccountRepository,
+	accountSvc interfaces.AccountService,
+	cfg *config.Config,
+) *handlers.OAuthHandler {
+	return handlers.NewOAuthHandler(oauthService, accountRepo, accountSvc, cfg.Claude.BaseURL)
 }

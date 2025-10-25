@@ -32,6 +32,7 @@ func StartAPIServer(
 	proxyHandler *handlers.ProxyHandler,
 	authHandler *handlers.AuthHandler,
 	accountHandler *handlers.AccountHandler,
+	oauthHandler *handlers.OAuthHandler,
 	tokenService interfaces.TokenService,
 ) {
 	// Health check (public)
@@ -48,6 +49,14 @@ func StartAPIServer(
 	v1.Use(middleware.BearerTokenAuth(tokenService, appLogger))
 	{
 		v1.Any("/*path", proxyHandler.ProxyRequest)
+	}
+
+	// OAuth routes (public - for account creation)
+	oauth := engine.Group("/oauth")
+	{
+		oauth.GET("/authorize", oauthHandler.GetAuthorizeURL)
+		oauth.POST("/exchange", oauthHandler.ExchangeCode)
+		oauth.GET("/callback", oauthHandler.HandleCallback)
 	}
 
 	// API routes for admin
@@ -141,12 +150,24 @@ func StartAPIServer(
 			appLogger.Info("  Health:")
 			appLogger.Info("    GET  /health          - Health check")
 			appLogger.Info("    GET  /api/health      - Health check (legacy)")
+			appLogger.Info("  OAuth (public):")
+			appLogger.Info("    GET  /oauth/authorize - Get OAuth authorization URL")
+			appLogger.Info("    POST /oauth/exchange  - Exchange OAuth code for account")
+			appLogger.Info("    GET  /oauth/callback  - OAuth callback handler")
+			appLogger.Info("  Auth (public):")
+			appLogger.Info("    POST /api/auth/login    - Admin login")
+			appLogger.Info("    POST /api/auth/validate - Validate API key")
 			appLogger.Info("  Token Management (requires API key):")
 			appLogger.Info("    GET    /api/tokens    - List all tokens")
 			appLogger.Info("    POST   /api/tokens    - Create new token")
 			appLogger.Info("    GET    /api/tokens/:id - Get token by ID")
 			appLogger.Info("    PUT    /api/tokens/:id - Update token")
 			appLogger.Info("    DELETE /api/tokens/:id - Delete token")
+			appLogger.Info("  Account Management (requires API key):")
+			appLogger.Info("    GET    /api/accounts    - List all accounts")
+			appLogger.Info("    GET    /api/accounts/:id - Get account by ID")
+			appLogger.Info("    PUT    /api/accounts/:id - Update account")
+			appLogger.Info("    DELETE /api/accounts/:id - Delete account")
 
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

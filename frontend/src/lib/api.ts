@@ -243,6 +243,22 @@ export const appAccountsApi = {
     return response.data.account
   },
 
+  // Create app account (start OAuth flow)
+  create: async (data: CreateAppAccountRequest): Promise<CreateAppAccountResponse> => {
+    const params = new URLSearchParams()
+    if (data.orgId) {
+      params.append('org_id', data.orgId)
+    }
+    const response = await apiClient.get(`/oauth/authorize?${params.toString()}`)
+    return response.data
+  },
+
+  // Complete OAuth flow
+  complete: async (data: CompleteAppAccountRequest): Promise<CompleteAppAccountResponse> => {
+    const response = await apiClient.post('/oauth/exchange', data)
+    return response.data
+  },
+
   // Update app account
   update: async (id: string, data: UpdateAppAccountRequest): Promise<AppAccount> => {
     const response = await apiClient.put(`/api/accounts/${id}`, data)
