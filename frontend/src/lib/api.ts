@@ -137,3 +137,73 @@ export const appTokenApi = {
     appTokens = appTokens.filter((t) => t.id !== id)
   },
 }
+
+// OAuth API (real API calls to backend)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5201'
+
+export interface OAuthAuthorizeResponse {
+  authorization_url: string
+  state: string
+  code_verifier: string
+}
+
+export interface OAuthExchangeRequest {
+  code: string
+  state: string
+  code_verifier: string
+  org_id?: string
+}
+
+export interface OAuthExchangeResponse {
+  success: boolean
+  message: string
+  organization_uuid: string
+  expires_at: number
+}
+
+export interface HealthResponse {
+  status: string
+  timestamp: number
+  account: {
+    account_valid: boolean
+    expires_at?: number
+    organization?: string
+  }
+}
+
+export const oauthApi = {
+  // Generate OAuth authorization URL
+  getAuthorizeUrl: async (): Promise<OAuthAuthorizeResponse> => {
+    const response = await fetch(`${API_BASE_URL}/oauth/authorize`)
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to get authorization URL')
+    }
+    return response.json()
+  },
+
+  // Exchange authorization code for tokens
+  exchangeCode: async (data: OAuthExchangeRequest): Promise<OAuthExchangeResponse> => {
+    const response = await fetch(`${API_BASE_URL}/oauth/exchange`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to exchange code')
+    }
+    return response.json()
+  },
+
+  // Get health status (includes account info)
+  getHealth: async (): Promise<HealthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/health`)
+    if (!response.ok) {
+      throw new Error('Failed to get health status')
+    }
+    return response.json()
+  },
+}

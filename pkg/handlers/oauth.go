@@ -31,7 +31,7 @@ func NewOAuthHandler(oauthService *oauth.Service, accountManager *account.Manage
 	}
 }
 
-// GetAuthorizeURL generates and returns the OAuth authorization URL
+// GetAuthorizeURL generates and returns the OAuth authorization URL with PKCE challenge
 // GET /oauth/authorize
 func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 	// Generate PKCE challenge
@@ -46,7 +46,7 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 		return
 	}
 
-	// Store challenge (in production, use Redis or similar)
+	// Store challenge for later use (when user submits the code)
 	h.challengesMu.Lock()
 	h.challenges[challenge.State] = challenge
 	h.challengesMu.Unlock()
@@ -65,30 +65,37 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"authorization_url": authURL,
 		"state":             challenge.State,
+		"code_verifier":     challenge.CodeVerifier,
 	})
 }
 
-// HandleCallback handles the OAuth callback
-// GET /oauth/callback?code=...&state=...
-func (h *OAuthHandler) HandleCallback(c *gin.Context) {
-	code := c.Query("code")
-	state := c.Query("state")
+// ExchangeCodeRequest represents the request body for code exchange
+type ExchangeCodeRequest struct {
+	Code         string `json:"code" binding:"required"`
+	State        string `json:"state" binding:"required"`
+	CodeVerifier string `json:"code_verifier" binding:"required"`
+	OrgID        string `json:"org_id,omitempty"` // Optional organization ID
+}
 
-	if code == "" || state == "" {
+// ExchangeCode exchanges authorization code for tokens (manual flow)
+// POST /oauth/exchange
+func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
+	var req ExchangeCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
-				"type":    "oauth_error",
-				"message": "Missing code or state parameter",
+				"type":    "invalid_request_error",
+				"message": fmt.Sprintf("Invalid request: %v", err),
 			},
 		})
 		return
 	}
 
-	// Retrieve challenge
+	// Verify state matches a stored challenge
 	h.challengesMu.Lock()
-	challenge, exists := h.challenges[state]
+	challenge, exists := h.challenges[req.State]
 	if exists {
-		delete(h.challenges, state)
+		delete(h.challenges, req.State)
 	}
 	h.challengesMu.Unlock()
 
@@ -96,7 +103,18 @@ func (h *OAuthHandler) HandleCallback(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
 				"type":    "oauth_error",
-				"message": "Invalid or expired state parameter",
+				"message": "Invalid or expired state. Please generate a new authorization URL.",
+			},
+		})
+		return
+	}
+
+	// Verify code verifier matches
+	if challenge.CodeVerifier != req.CodeVerifier {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"type":    "oauth_error",
+				"message": "Code verifier mismatch",
 			},
 		})
 		return
@@ -106,7 +124,7 @@ func (h *OAuthHandler) HandleCallback(c *gin.Context) {
 	defer cancel()
 
 	// Exchange code for tokens
-	tokenResp, err := h.oauthService.ExchangeCodeForToken(ctx, code, challenge.CodeVerifier)
+	tokenResp, err := h.oauthService.ExchangeCodeForToken(ctx, req.Code, req.CodeVerifier)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -117,16 +135,21 @@ func (h *OAuthHandler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// Get organization UUID
-	orgUUID, err := h.oauthService.GetOrganizationUUID(ctx, tokenResp.AccessToken, h.claudeBaseURL)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
-				"type":    "oauth_error",
-				"message": fmt.Sprintf("Failed to get organization UUID: %v", err),
-			},
-		})
-		return
+	// Get organization UUID (use provided or fetch from API)
+	var orgUUID string
+	if req.OrgID != "" {
+		orgUUID = req.OrgID
+	} else {
+		orgUUID, err = h.oauthService.GetOrganizationUUID(ctx, tokenResp.AccessToken, h.claudeBaseURL)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{
+					"type":    "oauth_error",
+					"message": fmt.Sprintf("Failed to get organization UUID: %v", err),
+				},
+			})
+			return
+		}
 	}
 
 	// Save account
@@ -151,5 +174,29 @@ func (h *OAuthHandler) HandleCallback(c *gin.Context) {
 		"success":           true,
 		"message":           "Account configured successfully",
 		"organization_uuid": orgUUID,
+		"expires_at":        acc.ExpiresAt,
+	})
+}
+
+// HandleCallback handles the OAuth callback (returns code and state as JSON)
+// GET /oauth/callback?code=...&state=...
+func (h *OAuthHandler) HandleCallback(c *gin.Context) {
+	code := c.Query("code")
+	state := c.Query("state")
+
+	if code == "" || state == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"type":    "oauth_error",
+				"message": "Missing code or state parameter",
+			},
+		})
+		return
+	}
+
+	// Return code and state for the frontend to handle
+	c.JSON(http.StatusOK, gin.H{
+		"code":  code,
+		"state": state,
 	})
 }

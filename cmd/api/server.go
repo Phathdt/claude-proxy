@@ -35,6 +35,7 @@ func StartAPIServer(
 	oauth := engine.Group("/oauth")
 	{
 		oauth.GET("/authorize", oauthHandler.GetAuthorizeURL)
+		oauth.POST("/exchange", oauthHandler.ExchangeCode)
 		oauth.GET("/callback", oauthHandler.HandleCallback)
 	}
 
@@ -103,12 +104,13 @@ func StartAPIServer(
 			appLogger.Withs(sctx.Fields{"port": port}).Info("Starting Clove API Server")
 			appLogger.Info("API Endpoints:")
 			appLogger.Info("  OAuth:")
-			appLogger.Info("    GET  /oauth/authorize - Get OAuth authorization URL")
-			appLogger.Info("    GET  /oauth/callback  - OAuth callback handler")
+			appLogger.Info("    GET  /oauth/authorize - Generate OAuth URL (returns state + code_verifier)")
+			appLogger.Info("    POST /oauth/exchange  - Exchange code for tokens (manual flow)")
+			appLogger.Info("    GET  /oauth/callback  - OAuth callback page (shows code to copy)")
 			appLogger.Info("  Claude API (requires X-API-Key header):")
 			appLogger.Info("    POST /v1/messages     - Send message to Claude")
 			appLogger.Info("  Health:")
-			appLogger.Info("    GET  /health          - Health check")
+			appLogger.Info("    GET  /health          - Health check with account status")
 			appLogger.Info("    GET  /api/health      - Health check (legacy)")
 
 			go func() {
