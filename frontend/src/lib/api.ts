@@ -1,8 +1,8 @@
 import axios from 'axios'
 import type { Token, CreateTokenDto, UpdateTokenDto } from '@/types/token'
 import type { AppToken, CreateAppTokenDto, UpdateAppTokenDto } from '@/types/app-token'
-import { mockTokens } from './mock-data'
 import { mockAppTokens } from './mock-app-tokens'
+import { convertKeysToSnake, convertKeysToCamel } from './case-converter'
 
 // Simulated delay for API calls
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -19,13 +19,24 @@ const apiClient = axios.create({
   },
 })
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and convert camelCase to snake_case
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers['X-API-Key'] = token
     }
+
+    // Convert request data from camelCase to snake_case
+    if (config.data) {
+      config.data = convertKeysToSnake(config.data)
+    }
+
+    // Convert query params from camelCase to snake_case
+    if (config.params) {
+      config.params = convertKeysToSnake(config.params)
+    }
+
     return config
   },
   (error) => {
@@ -33,10 +44,21 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Response interceptor for error handling
+// Response interceptor for error handling and convert snake_case to camelCase
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Convert response data from snake_case to camelCase
+    if (response.data) {
+      response.data = convertKeysToCamel(response.data)
+    }
+    return response
+  },
   (error) => {
+    // Convert error response data from snake_case to camelCase
+    if (error.response?.data) {
+      error.response.data = convertKeysToCamel(error.response.data)
+    }
+
     if (error.response?.data?.error?.message) {
       throw new Error(error.response.data.error.message)
     } else if (error.response?.data?.error) {
@@ -49,54 +71,41 @@ apiClient.interceptors.response.use(
   }
 )
 
-let tokens = [...mockTokens]
 let appTokens = [...mockAppTokens]
 
+// Token API (real API calls to backend)
 export const tokenApi = {
   getAll: async (): Promise<Token[]> => {
-    await delay(500)
-    return [...tokens]
+    const response = await apiClient.get('/api/tokens')
+    return response.data.tokens || []
   },
 
   getById: async (id: string): Promise<Token | undefined> => {
-    await delay(300)
-    return tokens.find((t) => t.id === id)
+    const response = await apiClient.get(`/api/tokens/${id}`)
+    return response.data.token
   },
 
   create: async (data: CreateTokenDto): Promise<Token> => {
-    await delay(800)
-    const newToken: Token = {
-      id: Math.random().toString(36).substring(7),
-      name: data.name,
-      key: data.key,
-      status: data.status,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      usageCount: 0,
-    }
-    tokens.push(newToken)
-    return newToken
+    const response = await apiClient.post('/api/tokens', data)
+    return response.data.token
   },
 
   update: async (data: UpdateTokenDto): Promise<Token> => {
-    await delay(600)
-    const index = tokens.findIndex((t) => t.id === data.id)
-    if (index === -1) throw new Error('Token not found')
-
-    const updatedToken: Token = {
-      ...tokens[index],
+    const response = await apiClient.put(`/api/tokens/${data.id}`, {
       name: data.name,
       key: data.key,
       status: data.status,
-      updatedAt: new Date().toISOString(),
-    }
-    tokens[index] = updatedToken
-    return updatedToken
+    })
+    return response.data.token
   },
 
   delete: async (id: string): Promise<void> => {
-    await delay(500)
-    tokens = tokens.filter((t) => t.id !== id)
+    await apiClient.delete(`/api/tokens/${id}`)
+  },
+
+  generateKey: async (): Promise<string> => {
+    const response = await apiClient.post('/api/tokens/generate-key')
+    return response.data.key
   },
 }
 

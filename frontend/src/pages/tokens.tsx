@@ -126,7 +126,7 @@ export function TokensPage() {
                       {token.usageCount.toLocaleString()}
                     </td>
                     <td className="text-muted-foreground px-6 py-4 text-sm">
-                      {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : 'Never'}
+                      {token.lastUsedAt ? new Date(token.lastUsedAt * 1000).toLocaleString() : 'Never'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">

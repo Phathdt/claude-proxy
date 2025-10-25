@@ -32,6 +32,7 @@ func StartAPIServer(
 	healthHandler *handlers.HealthHandler,
 	authHandler *handlers.AuthHandler,
 	appAccountHandler *handlers.AppAccountHandler,
+	tokensHandler *handlers.TokensHandler,
 ) {
 	// OAuth routes (public, no auth required)
 	oauth := engine.Group("/oauth")
@@ -73,6 +74,18 @@ func StartAPIServer(
 			appAccounts.GET("/:id", appAccountHandler.GetAppAccount)
 			appAccounts.PUT("/:id", appAccountHandler.UpdateAppAccount)
 			appAccounts.DELETE("/:id", appAccountHandler.DeleteAppAccount)
+		}
+
+		// Token routes (protected with API key)
+		tokens := api.Group("/tokens")
+		tokens.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
+		{
+			tokens.GET("", tokensHandler.ListTokens)
+			tokens.POST("", tokensHandler.CreateToken)
+			tokens.POST("/generate-key", tokensHandler.GenerateKey)
+			tokens.GET("/:id", tokensHandler.GetToken)
+			tokens.PUT("/:id", tokensHandler.UpdateToken)
+			tokens.DELETE("/:id", tokensHandler.DeleteToken)
 		}
 	}
 

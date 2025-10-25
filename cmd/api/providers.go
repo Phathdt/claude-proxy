@@ -13,6 +13,7 @@ import (
 	"claude-proxy/pkg/handlers"
 	"claude-proxy/pkg/oauth"
 	"claude-proxy/pkg/telegram"
+	"claude-proxy/pkg/token"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"
@@ -38,6 +39,8 @@ var CloveProviders = fx.Options(
 		NewAccountManager,
 		// Multi-account manager
 		NewMultiAccountManager,
+		// Token manager
+		NewTokenManager,
 		// Claude API client
 		NewClaudeClient,
 		// Handlers
@@ -46,6 +49,7 @@ var CloveProviders = fx.Options(
 		NewHealthHandler,
 		NewAuthHandler,
 		NewAppAccountHandler,
+		NewTokensHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -321,4 +325,25 @@ func NewMultiAccountManager(cfg *config.Config, oauthService *oauth.Service, app
 // NewAppAccountHandler creates a new app account handler
 func NewAppAccountHandler(oauthService *oauth.Service, multiAcctMgr *account.MultiAccountManager, cfg *config.Config) *handlers.AppAccountHandler {
 	return handlers.NewAppAccountHandler(oauthService, multiAcctMgr, cfg.Claude.BaseURL)
+}
+
+// NewTokenManager creates a new token manager
+func NewTokenManager(cfg *config.Config, appLogger sctx.Logger) (*token.Manager, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "token-manager"})
+
+	manager := token.NewManager(cfg.Storage.DataFolder)
+
+	// Initialize (create data folder and load existing tokens)
+	if err := manager.Initialize(); err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to initialize token manager")
+		return nil, fmt.Errorf("failed to initialize token manager: %w", err)
+	}
+
+	logger.Info("Token manager initialized successfully")
+	return manager, nil
+}
+
+// NewTokensHandler creates a new tokens handler
+func NewTokensHandler(tokenManager *token.Manager) *handlers.TokensHandler {
+	return handlers.NewTokensHandler(tokenManager)
 }

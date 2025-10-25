@@ -3,10 +3,10 @@ export interface Token {
   name: string
   key: string
   status: 'active' | 'inactive'
-  createdAt: string
-  updatedAt: string
+  createdAt: number
+  updatedAt: number
   usageCount: number
-  lastUsedAt?: string
+  lastUsedAt?: number
 }
 
 export interface CreateTokenDto {
