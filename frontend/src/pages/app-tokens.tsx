@@ -6,6 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
   useAppAccounts,
   useCreateAppAccount,
   useCompleteAppAccount,
@@ -111,9 +119,9 @@ export function AppTokensPage() {
         </Button>
       </div>
 
-      {/* Accounts list */}
+      {/* Accounts Table */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="text-center py-12">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
@@ -124,20 +132,29 @@ export function AppTokensPage() {
               <p className="text-muted-foreground">No app accounts yet. Create one to get started!</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-medium">{account.name}</h3>
-                    <p className="text-sm text-muted-foreground font-mono">
-                      {account.organization_uuid}
-                    </p>
-                    <div className="flex items-center gap-2 mt-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Organization UUID</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Expires At</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accounts.map((account) => (
+                  <TableRow key={account.id}>
+                    <TableCell className="font-medium">{account.name}</TableCell>
+                    <TableCell>
+                      <code className="text-xs bg-muted px-2 py-1 rounded">
+                        {account.organization_uuid}
+                      </code>
+                    </TableCell>
+                    <TableCell>
                       <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           account.status === 'active'
                             ? 'bg-green-500/10 text-green-500'
                             : 'bg-gray-500/10 text-gray-500'
@@ -145,26 +162,31 @@ export function AppTokensPage() {
                       >
                         {account.status}
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        Expires: {new Date(account.expires_at * 1000).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(account.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    {deleteMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {new Date(account.expires_at * 1000).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(account.created_at * 1000).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(account.id)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        {deleteMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
