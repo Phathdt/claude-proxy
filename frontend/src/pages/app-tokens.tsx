@@ -1,29 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Trash2, ExternalLink, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5201'
-
-interface AppAccount {
-  id: string
-  name: string
-  organization_uuid: string
-  status: string
-  created_at: number
-  updated_at: number
-  expires_at: number
-}
+import {
+  useAppAccounts,
+  useCreateAppAccount,
+  useCompleteAppAccount,
+  useDeleteAppAccount,
+} from '@/hooks/use-app-accounts'
 
 export function AppTokensPage() {
-  const [accounts, setAccounts] = useState<AppAccount[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showModal, setShowModal] = useState(false)
+  // React Query hooks
+  const { data: accounts = [], isLoading } = useAppAccounts()
+  const createMutation = useCreateAppAccount()
+  const completeMutation = useCompleteAppAccount()
+  const deleteMutation = useDeleteAppAccount()
 
   // Modal state
+  const [showModal, setShowModal] = useState(false)
   const [step, setStep] = useState(1)
   const [appName, setAppName] = useState('')
   const [orgId, setOrgId] = useState('')
@@ -33,21 +30,6 @@ export function AppTokensPage() {
   const [authCode, setAuthCode] = useState('')
   const [error, setError] = useState('')
 
-  // Load accounts
-  const loadAccounts = async () => {
-    try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${API_BASE_URL}/api/app-accounts`, {
-        headers: { 'X-API-Key': token || '' },
-      })
-      if (!response.ok) throw new Error('Failed to load accounts')
-      const data = await response.json()
-      setAccounts(data.accounts || [])
-    } catch (err) {
-      console.error('Failed to load accounts:', err)
-    }
-  }
-
   // Step 1: Start OAuth flow
   const handleStartOAuth = async () => {
     if (!appName.trim()) {
@@ -55,34 +37,18 @@ export function AppTokensPage() {
       return
     }
 
-    setLoading(true)
     setError('')
-
     try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${API_BASE_URL}/api/app-accounts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': token || '',
-        },
-        body: JSON.stringify({ name: appName, org_id: orgId || undefined }),
+      const data = await createMutation.mutateAsync({
+        name: appName,
+        org_id: orgId || undefined,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error?.message || 'Failed to start OAuth')
-      }
-
-      const data = await response.json()
       setAuthUrl(data.authorization_url)
       setState(data.state)
       setCodeVerifier(data.code_verifier)
       setStep(2)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start OAuth')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -93,38 +59,19 @@ export function AppTokensPage() {
       return
     }
 
-    setLoading(true)
     setError('')
-
     try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${API_BASE_URL}/api/app-accounts/complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': token || '',
-        },
-        body: JSON.stringify({
-          name: appName,
-          code: authCode,
-          state,
-          code_verifier: codeVerifier,
-          org_id: orgId || undefined,
-        }),
+      await completeMutation.mutateAsync({
+        name: appName,
+        code: authCode,
+        state,
+        code_verifier: codeVerifier,
+        org_id: orgId || undefined,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error?.message || 'Failed to complete OAuth')
-      }
-
-      // Success! Reload accounts and close modal
-      await loadAccounts()
+      // Success! Close modal
       resetModal()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to complete OAuth')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -133,14 +80,7 @@ export function AppTokensPage() {
     if (!confirm('Are you sure you want to delete this app account?')) return
 
     try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
-        method: 'DELETE',
-        headers: { 'X-API-Key': token || '' },
-      })
-
-      if (!response.ok) throw new Error('Failed to delete account')
-      await loadAccounts()
+      await deleteMutation.mutateAsync(id)
     } catch (err) {
       alert('Failed to delete account')
     }
@@ -158,12 +98,6 @@ export function AppTokensPage() {
     setError('')
   }
 
-  // Load accounts on mount
-  useEffect(() => {
-    loadAccounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -180,7 +114,12 @@ export function AppTokensPage() {
       {/* Accounts list */}
       <Card>
         <CardContent className="p-6">
-          {accounts.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+              <p className="mt-2 text-muted-foreground">Loading accounts...</p>
+            </div>
+          ) : accounts.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No app accounts yet. Create one to get started!</p>
             </div>
@@ -189,23 +128,39 @@ export function AppTokensPage() {
               {accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:border-primary/50 transition-colors"
                 >
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-medium">{account.name}</h3>
-                    <p className="text-sm text-muted-foreground">{account.organization_uuid}</p>
-                    <span
-                      className={`inline-flex mt-2 rounded-full px-2 py-1 text-xs font-medium ${
-                        account.status === 'active'
-                          ? 'bg-green-500/10 text-green-500'
-                          : 'bg-gray-500/10 text-gray-500'
-                      }`}
-                    >
-                      {account.status}
-                    </span>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {account.organization_uuid}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                          account.status === 'active'
+                            ? 'bg-green-500/10 text-green-500'
+                            : 'bg-gray-500/10 text-gray-500'
+                        }`}
+                      >
+                        {account.status}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Expires: {new Date(account.expires_at * 1000).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(account.id)}>
-                    <Trash2 className="h-4 w-4" />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(account.id)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               ))}
@@ -216,8 +171,8 @@ export function AppTokensPage() {
 
       {/* Create Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-lg mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
             <CardHeader>
               <CardTitle>Create App Token</CardTitle>
               <CardDescription>Step {step} of 2</CardDescription>
@@ -232,6 +187,7 @@ export function AppTokensPage() {
                       value={appName}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAppName(e.target.value)}
                       placeholder="My Claude App"
+                      disabled={createMutation.isPending}
                     />
                   </div>
                   <div>
@@ -241,6 +197,7 @@ export function AppTokensPage() {
                       value={orgId}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrgId(e.target.value)}
                       placeholder="org_..."
+                      disabled={createMutation.isPending}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       If not provided, will be fetched from your account
@@ -255,11 +212,20 @@ export function AppTokensPage() {
                   )}
 
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={resetModal} className="flex-1">
+                    <Button
+                      variant="outline"
+                      onClick={resetModal}
+                      disabled={createMutation.isPending}
+                      className="flex-1"
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={handleStartOAuth} disabled={loading} className="flex-1">
-                      {loading ? (
+                    <Button
+                      onClick={handleStartOAuth}
+                      disabled={createMutation.isPending}
+                      className="flex-1"
+                    >
+                      {createMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Generating...
@@ -298,6 +264,7 @@ export function AppTokensPage() {
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthCode(e.target.value)}
                       placeholder="Paste the code from the callback URL"
                       className="mt-2"
+                      disabled={completeMutation.isPending}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       After authorizing, copy the <code>code</code> parameter from the redirect URL
@@ -312,11 +279,20 @@ export function AppTokensPage() {
                   )}
 
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={resetModal} className="flex-1">
+                    <Button
+                      variant="outline"
+                      onClick={resetModal}
+                      disabled={completeMutation.isPending}
+                      className="flex-1"
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={handleCompleteOAuth} disabled={loading} className="flex-1">
-                      {loading ? (
+                    <Button
+                      onClick={handleCompleteOAuth}
+                      disabled={completeMutation.isPending}
+                      className="flex-1"
+                    >
+                      {completeMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Completing...

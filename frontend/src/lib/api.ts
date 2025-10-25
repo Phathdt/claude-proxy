@@ -238,3 +238,136 @@ export const oauthApi = {
     return response.json()
   },
 }
+
+// App Accounts API (multi-account OAuth management)
+export interface AppAccount {
+  id: string
+  name: string
+  organization_uuid: string
+  access_token?: string
+  refresh_token?: string
+  expires_at: number
+  status: string
+  created_at: number
+  updated_at: number
+}
+
+export interface CreateAppAccountRequest {
+  name: string
+  org_id?: string
+}
+
+export interface CreateAppAccountResponse {
+  authorization_url: string
+  state: string
+  code_verifier: string
+}
+
+export interface CompleteAppAccountRequest {
+  name: string
+  code: string
+  state: string
+  code_verifier: string
+  org_id?: string
+}
+
+export interface CompleteAppAccountResponse {
+  success: boolean
+  message: string
+  account: AppAccount
+}
+
+export interface UpdateAppAccountRequest {
+  name?: string
+  status?: string
+}
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token')
+  return {
+    'Content-Type': 'application/json',
+    'X-API-Key': token || '',
+  }
+}
+
+export const appAccountsApi = {
+  // Start OAuth flow - returns authorization URL
+  create: async (data: CreateAppAccountRequest): Promise<CreateAppAccountResponse> => {
+    const response = await fetch(`${API_BASE_URL}/api/app-accounts`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to start OAuth')
+    }
+    return response.json()
+  },
+
+  // Complete OAuth flow - exchange code for tokens
+  complete: async (data: CompleteAppAccountRequest): Promise<CompleteAppAccountResponse> => {
+    const response = await fetch(`${API_BASE_URL}/api/app-accounts/complete`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to complete OAuth')
+    }
+    return response.json()
+  },
+
+  // List all app accounts
+  list: async (): Promise<AppAccount[]> => {
+    const response = await fetch(`${API_BASE_URL}/api/app-accounts`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error('Failed to load accounts')
+    }
+    const data = await response.json()
+    return data.accounts || []
+  },
+
+  // Get single app account
+  get: async (id: string): Promise<AppAccount> => {
+    const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Account not found')
+    }
+    const data = await response.json()
+    return data.account
+  },
+
+  // Update app account
+  update: async (id: string, data: UpdateAppAccountRequest): Promise<AppAccount> => {
+    const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to update account')
+    }
+    const result = await response.json()
+    return result.account
+  },
+
+  // Delete app account
+  delete: async (id: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to delete account')
+    }
+  },
+}
