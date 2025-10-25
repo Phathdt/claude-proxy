@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -33,7 +34,7 @@ type Manager struct {
 // NewManager creates a new token manager
 func NewManager(dataFolder string) *Manager {
 	return &Manager{
-		dataFolder: dataFolder,
+		dataFolder: expandPath(dataFolder),
 		tokens:     make(map[string]*Token),
 	}
 }
@@ -242,4 +243,16 @@ func generateID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
+}
+
+// expandPath expands ~ to home directory
+func expandPath(path string) string {
+	if strings.HasPrefix(path, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return filepath.Join(home, path[1:])
+	}
+	return path
 }
