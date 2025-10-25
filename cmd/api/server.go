@@ -33,6 +33,7 @@ func StartAPIServer(
 	authHandler *handlers.AuthHandler,
 	appAccountHandler *handlers.AppAccountHandler,
 	tokensHandler *handlers.TokensHandler,
+	proxyHandler *handlers.ProxyHandler,
 ) {
 	// OAuth routes (public, no auth required)
 	oauth := engine.Group("/oauth")
@@ -45,11 +46,11 @@ func StartAPIServer(
 	// Health check (public)
 	engine.GET("/health", healthHandler.Check)
 
-	// Protected API routes with API key authentication
+	// Protected Claude API proxy routes (user token authentication via Bearer)
 	v1 := engine.Group("/v1")
-	v1.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
 	{
-		v1.POST("/messages", messagesHandler.CreateMessage)
+		v1.GET("/models", proxyHandler.GetModels)
+		v1.POST("/messages", proxyHandler.CreateMessage)
 	}
 
 	// Legacy /api routes for compatibility
@@ -141,7 +142,8 @@ func StartAPIServer(
 			appLogger.Info("    GET  /oauth/authorize - Generate OAuth URL (returns state + code_verifier)")
 			appLogger.Info("    POST /oauth/exchange  - Exchange code for tokens (manual flow)")
 			appLogger.Info("    GET  /oauth/callback  - OAuth callback page (shows code to copy)")
-			appLogger.Info("  Claude API (requires X-API-Key header):")
+			appLogger.Info("  Claude API Proxy (requires Bearer token):")
+			appLogger.Info("    GET  /v1/models       - Get available Claude models")
 			appLogger.Info("    POST /v1/messages     - Send message to Claude")
 			appLogger.Info("  Health:")
 			appLogger.Info("    GET  /health          - Health check with account status")

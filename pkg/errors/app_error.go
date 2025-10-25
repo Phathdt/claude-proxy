@@ -105,3 +105,30 @@ func NewDatabaseError(operation, details string) AppError {
 		HttpStatus: http.StatusInternalServerError,
 	}
 }
+
+func NewUnauthorizedError(details string) AppError {
+	return &BaseAppError{
+		Code:       "UNAUTHORIZED",
+		Msg:        "Unauthorized access",
+		Detail:     details,
+		HttpStatus: http.StatusUnauthorized,
+	}
+}
+
+func NewServiceUnavailableError(details string) AppError {
+	return &BaseAppError{
+		Code:       "SERVICE_UNAVAILABLE",
+		Msg:        "Service temporarily unavailable",
+		Detail:     details,
+		HttpStatus: http.StatusServiceUnavailable,
+	}
+}
+
+func NewInternalServerError(details string) AppError {
+	return &BaseAppError{
+		Code:       "INTERNAL_SERVER_ERROR",
+		Msg:        "Internal server error",
+		Detail:     details,
+		HttpStatus: http.StatusInternalServerError,
+	}
+}
