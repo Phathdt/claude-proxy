@@ -1,11 +1,6 @@
 import axios from 'axios'
 import type { Token, CreateTokenDto, UpdateTokenDto } from '@/types/token'
-import type { AppToken, CreateAppTokenDto, UpdateAppTokenDto } from '@/types/app-token'
-import { mockAppTokens } from './mock-app-tokens'
 import { convertKeysToSnake, convertKeysToCamel } from './case-converter'
-
-// Simulated delay for API calls
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // API base URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -70,8 +65,6 @@ apiClient.interceptors.response.use(
     }
   }
 )
-
-let appTokens = [...mockAppTokens]
 
 // Token API (real API calls to backend)
 export const tokenApi = {
@@ -138,62 +131,7 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     // Just clear local storage, no backend call needed
-    await delay(300)
-  },
-}
-
-// App Token API
-export const appTokenApi = {
-  getAll: async (): Promise<AppToken[]> => {
-    await delay(500)
-    return [...appTokens]
-  },
-
-  getById: async (id: string): Promise<AppToken | undefined> => {
-    await delay(300)
-    return appTokens.find((t) => t.id === id)
-  },
-
-  create: async (data: CreateAppTokenDto): Promise<AppToken> => {
-    await delay(800)
-    const newToken: AppToken = {
-      id: Math.random().toString(36).substring(7),
-      name: data.name,
-      email: data.email,
-      orgId: data.orgId,
-      type: data.type,
-      accountType: data.accountType,
-      status: data.status,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      usageCount: 0,
-    }
-    appTokens.push(newToken)
-    return newToken
-  },
-
-  update: async (data: UpdateAppTokenDto): Promise<AppToken> => {
-    await delay(600)
-    const index = appTokens.findIndex((t) => t.id === data.id)
-    if (index === -1) throw new Error('App token not found')
-
-    const updatedToken: AppToken = {
-      ...appTokens[index],
-      name: data.name,
-      email: data.email,
-      orgId: data.orgId,
-      type: data.type,
-      accountType: data.accountType,
-      status: data.status,
-      updatedAt: new Date().toISOString(),
-    }
-    appTokens[index] = updatedToken
-    return updatedToken
-  },
-
-  delete: async (id: string): Promise<void> => {
-    await delay(500)
-    appTokens = appTokens.filter((t) => t.id !== id)
+    localStorage.removeItem('auth_token')
   },
 }
 
