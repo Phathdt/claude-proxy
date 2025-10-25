@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"claude-proxy/pkg/account"
@@ -24,10 +23,22 @@ func NewHealthHandler(accountManager *account.Manager) *HealthHandler {
 // GET /health
 func (h *HealthHandler) Check(c *gin.Context) {
 	status := h.accountManager.GetStatus()
-	
-	c.JSON(http.StatusOK, gin.H{
-		"status":    "ok",
-		"timestamp": time.Now().Unix(),
-		"account":   status,
-	})
+
+	// Build response matching MVP spec format
+	response := gin.H{
+		"status":        "ok",
+		"account_valid": status["account_valid"],
+	}
+
+	// Add optional fields if account is valid
+	if status["account_valid"] == true {
+		if expiresAt, ok := status["expires_at"]; ok {
+			response["expires_at"] = expiresAt
+		}
+		if org, ok := status["organization"]; ok {
+			response["organization_uuid"] = org
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }
