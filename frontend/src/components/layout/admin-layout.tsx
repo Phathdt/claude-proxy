@@ -1,13 +1,12 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Key, LogOut, Shield, Link2, User } from 'lucide-react'
+import { LayoutDashboard, Key, LogOut, Shield, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { name: 'OAuth Setup', href: '/admin/oauth-setup', icon: Link2 },
-  { name: 'Tokens', href: '/admin/tokens', icon: Key },
   { name: 'App Tokens (OAuth)', href: '/admin/app-tokens', icon: Shield },
+  { name: 'Tokens', href: '/admin/tokens', icon: Key },
 ]
 
 export function AdminLayout() {

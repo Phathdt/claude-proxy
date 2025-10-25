@@ -5,7 +5,6 @@ import { LoginPage } from './pages/login'
 import { DashboardPage } from './pages/dashboard'
 import { TokensPage } from './pages/tokens'
 import { AppTokensPage } from './pages/app-tokens'
-import OAuthSetup from './pages/oauth-setup'
 import { AdminLayout } from './components/layout/admin-layout'
 import { useAuth } from './hooks/useAuth'
 import { Loader2 } from 'lucide-react'
@@ -48,7 +47,6 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/oauth/setup" element={<OAuthSetup />} />
           <Route
             path="/admin"
             element={
@@ -61,7 +59,6 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="tokens" element={<TokensPage />} />
             <Route path="app-tokens" element={<AppTokensPage />} />
-            <Route path="oauth-setup" element={<OAuthSetup />} />
           </Route>
           <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>

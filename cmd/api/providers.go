@@ -36,6 +36,8 @@ var CloveProviders = fx.Options(
 		NewOAuthService,
 		// Account manager with token refresher
 		NewAccountManager,
+		// Multi-account manager
+		NewMultiAccountManager,
 		// Claude API client
 		NewClaudeClient,
 		// Handlers
@@ -43,6 +45,7 @@ var CloveProviders = fx.Options(
 		NewMessagesHandler,
 		NewHealthHandler,
 		NewAuthHandler,
+		NewAppAccountHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -292,4 +295,29 @@ func NewHealthHandler(accountManager *account.Manager) *handlers.HealthHandler {
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
 	return handlers.NewAuthHandler(cfg)
+}
+
+// NewMultiAccountManager creates a new multi-account manager
+func NewMultiAccountManager(cfg *config.Config, oauthService *oauth.Service, appLogger sctx.Logger) (*account.MultiAccountManager, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "multi-account-manager"})
+
+	// Create adapter for token refresh
+	refresher := &oauthRefreshAdapter{oauthService: oauthService}
+
+	// Create multi-account manager
+	manager := account.NewMultiAccountManager(cfg.Storage.DataFolder, refresher)
+
+	// Initialize (create data folder and load existing accounts)
+	if err := manager.Initialize(); err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to initialize multi-account manager")
+		return nil, fmt.Errorf("failed to initialize multi-account manager: %w", err)
+	}
+
+	logger.Info("Multi-account manager initialized successfully")
+	return manager, nil
+}
+
+// NewAppAccountHandler creates a new app account handler
+func NewAppAccountHandler(oauthService *oauth.Service, multiAcctMgr *account.MultiAccountManager, cfg *config.Config) *handlers.AppAccountHandler {
+	return handlers.NewAppAccountHandler(oauthService, multiAcctMgr, cfg.Claude.BaseURL)
 }
