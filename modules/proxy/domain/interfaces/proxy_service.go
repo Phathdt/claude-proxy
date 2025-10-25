@@ -14,5 +14,5 @@ type ProxyService interface {
 	ProxyRequest(ctx context.Context, token *entities.Token, req *http.Request) (*http.Response, error)
 
 	// GetValidAccount returns a valid active account with a fresh access token
-	GetValidAccount(ctx context.Context) (*entities.AppAccount, error)
+	GetValidAccount(ctx context.Context) (*entities.Account, error)
 }
