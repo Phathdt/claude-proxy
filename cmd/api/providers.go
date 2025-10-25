@@ -7,7 +7,11 @@ import (
 	"time"
 
 	"claude-proxy/config"
+	"claude-proxy/pkg/account"
+	"claude-proxy/pkg/claude"
 	"claude-proxy/pkg/errors"
+	"claude-proxy/pkg/handlers"
+	"claude-proxy/pkg/oauth"
 	"claude-proxy/pkg/telegram"
 
 	"github.com/gin-gonic/gin"
@@ -25,10 +29,20 @@ var CoreProviders = fx.Options(
 	),
 )
 
-// WalletCheckerProviders provides wallet checker domain providers
-var WalletCheckerProviders = fx.Options(
+// CloveProviders provides Clove-specific domain providers
+var CloveProviders = fx.Options(
 	fx.Provide(
-		// Telegram client
+		// OAuth service
+		NewOAuthService,
+		// Account manager with token refresher
+		NewAccountManager,
+		// Claude API client
+		NewClaudeClient,
+		// Handlers
+		NewOAuthHandler,
+		NewMessagesHandler,
+		NewHealthHandler,
+		// Telegram client (optional)
 		NewTelegramClient,
 	),
 )
@@ -36,7 +50,7 @@ var WalletCheckerProviders = fx.Options(
 // APIProviders provides all dependencies needed for the API service
 var APIProviders = fx.Options(
 	CoreProviders,
-	WalletCheckerProviders,
+	CloveProviders,
 	fx.Provide(
 		NewGinEngine,
 	),
@@ -209,4 +223,67 @@ func NewTelegramClient(cfg *config.Config, appLogger sctx.Logger) *telegram.Clie
 
 	logger := appLogger.Withs(sctx.Fields{"component": "telegram-client"})
 	return telegram.NewClient(telegramConfig, logger)
+}
+
+// NewOAuthService creates a new OAuth service
+func NewOAuthService(cfg *config.Config) *oauth.Service {
+	return oauth.NewService(
+		cfg.OAuth.ClientID,
+		cfg.OAuth.AuthorizeURL,
+		cfg.OAuth.TokenURL,
+		cfg.OAuth.RedirectURI,
+	)
+}
+
+// oauthRefreshAdapter adapts OAuth service to account.TokenRefresher interface
+type oauthRefreshAdapter struct {
+	oauthService *oauth.Service
+}
+
+func (a *oauthRefreshAdapter) RefreshAccessToken(ctx context.Context, refreshToken string) (string, string, int, error) {
+	tokenResp, err := a.oauthService.RefreshAccessToken(ctx, refreshToken)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return tokenResp.AccessToken, tokenResp.RefreshToken, tokenResp.ExpiresIn, nil
+}
+
+// NewAccountManager creates a new account manager
+func NewAccountManager(cfg *config.Config, oauthService *oauth.Service, appLogger sctx.Logger) (*account.Manager, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "account-manager"})
+
+	// Create adapter for token refresh
+	refresher := &oauthRefreshAdapter{oauthService: oauthService}
+
+	// Create account manager
+	manager := account.NewManager(cfg.Storage.DataFolder, refresher)
+
+	// Initialize (create data folder and load existing account)
+	if err := manager.Initialize(); err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to initialize account manager")
+		return nil, fmt.Errorf("failed to initialize account manager: %w", err)
+	}
+
+	logger.Info("Account manager initialized successfully")
+	return manager, nil
+}
+
+// NewClaudeClient creates a new Claude API client
+func NewClaudeClient(cfg *config.Config) *claude.Client {
+	return claude.NewClient(cfg.Claude.BaseURL)
+}
+
+// NewOAuthHandler creates a new OAuth handler
+func NewOAuthHandler(oauthService *oauth.Service, accountManager *account.Manager, cfg *config.Config) *handlers.OAuthHandler {
+	return handlers.NewOAuthHandler(oauthService, accountManager, cfg.Claude.BaseURL)
+}
+
+// NewMessagesHandler creates a new messages handler
+func NewMessagesHandler(claudeClient *claude.Client, accountManager *account.Manager, cfg *config.Config) *handlers.MessagesHandler {
+	return handlers.NewMessagesHandler(claudeClient, accountManager, cfg)
+}
+
+// NewHealthHandler creates a new health handler
+func NewHealthHandler(accountManager *account.Manager) *handlers.HealthHandler {
+	return handlers.NewHealthHandler(accountManager)
 }

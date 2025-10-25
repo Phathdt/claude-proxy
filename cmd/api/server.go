@@ -8,9 +8,10 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
-	"time"
 
 	"claude-proxy/config"
+	"claude-proxy/pkg/handlers"
+	"claude-proxy/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"
@@ -26,18 +27,31 @@ func StartAPIServer(
 	engine *gin.Engine,
 	cfg *config.Config,
 	appLogger sctx.Logger,
+	oauthHandler *handlers.OAuthHandler,
+	messagesHandler *handlers.MessagesHandler,
+	healthHandler *handlers.HealthHandler,
 ) {
-	// API routes group with /api prefix
+	// OAuth routes (public, no auth required)
+	oauth := engine.Group("/oauth")
+	{
+		oauth.GET("/authorize", oauthHandler.GetAuthorizeURL)
+		oauth.GET("/callback", oauthHandler.HandleCallback)
+	}
+
+	// Health check (public)
+	engine.GET("/health", healthHandler.Check)
+
+	// Protected API routes with API key authentication
+	v1 := engine.Group("/v1")
+	v1.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
+	{
+		v1.POST("/messages", messagesHandler.CreateMessage)
+	}
+
+	// Legacy /api routes for compatibility
 	api := engine.Group("/api")
 	{
-		// Health check endpoint
-		api.GET("/health", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"status":    "ok",
-				"timestamp": time.Now().Unix(),
-			})
-		})
-		// Add more API routes here
+		api.GET("/health", healthHandler.Check)
 	}
 
 	// Serve static frontend files
@@ -86,9 +100,16 @@ func StartAPIServer(
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			appLogger.Withs(sctx.Fields{"port": port}).Info("Starting API Server")
+			appLogger.Withs(sctx.Fields{"port": port}).Info("Starting Clove API Server")
 			appLogger.Info("API Endpoints:")
-			appLogger.Info("  GET  /api/health - General health check")
+			appLogger.Info("  OAuth:")
+			appLogger.Info("    GET  /oauth/authorize - Get OAuth authorization URL")
+			appLogger.Info("    GET  /oauth/callback  - OAuth callback handler")
+			appLogger.Info("  Claude API (requires X-API-Key header):")
+			appLogger.Info("    POST /v1/messages     - Send message to Claude")
+			appLogger.Info("  Health:")
+			appLogger.Info("    GET  /health          - Health check")
+			appLogger.Info("    GET  /api/health      - Health check (legacy)")
 
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

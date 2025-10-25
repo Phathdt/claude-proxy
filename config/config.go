@@ -10,11 +10,14 @@ import (
 )
 
 type Config struct {
-	Database      DatabaseConfig      `yaml:"database"       mapstructure:"database"`
-	Server        ServerConfig        `yaml:"server"         mapstructure:"server"`
-	Logger        LoggerConfig        `yaml:"logger"         mapstructure:"logger"`
-	Telegram      TelegramConfig      `yaml:"telegram"       mapstructure:"telegram"`
-	WalletChecker WalletCheckerConfig `yaml:"wallet_checker" mapstructure:"wallet_checker"`
+	Server   ServerConfig   `yaml:"server"   mapstructure:"server"`
+	Logger   LoggerConfig   `yaml:"logger"   mapstructure:"logger"`
+	Auth     AuthConfig     `yaml:"auth"     mapstructure:"auth"`
+	OAuth    OAuthConfig    `yaml:"oauth"    mapstructure:"oauth"`
+	Claude   ClaudeConfig   `yaml:"claude"   mapstructure:"claude"`
+	Storage  StorageConfig  `yaml:"storage"  mapstructure:"storage"`
+	Retry    RetryConfig    `yaml:"retry"    mapstructure:"retry"`
+	Telegram TelegramConfig `yaml:"telegram" mapstructure:"telegram"`
 }
 
 type TelegramConfig struct {
@@ -29,48 +32,38 @@ type LoggerConfig struct {
 	Format string `yaml:"format" mapstructure:"format"`
 }
 
-type DatabaseConfig struct {
-	URI string `yaml:"uri" mapstructure:"uri"`
-}
-
 type ServerConfig struct {
 	Host string `yaml:"host" mapstructure:"host"`
 	Port int    `yaml:"port" mapstructure:"port"`
 }
 
-// WalletCheckerConfig holds the configuration for wallet checker module
-type WalletCheckerConfig struct {
-	Enabled     bool                     `yaml:"enabled"     mapstructure:"enabled"`
-	Chainalysis ChainalysisConfig        `yaml:"chainalysis" mapstructure:"chainalysis"`
-	Cache       WalletCheckerCacheConfig `yaml:"cache"       mapstructure:"cache"`
+// AuthConfig holds API key authentication configuration
+type AuthConfig struct {
+	APIKey string `yaml:"api_key" mapstructure:"api_key"`
 }
 
-// ChainalysisConfig holds the configuration for Chainalysis API integration
-type ChainalysisConfig struct {
-	Enabled   bool            `yaml:"enabled"    mapstructure:"enabled"`
-	APIKey    string          `yaml:"api_key"    mapstructure:"api_key"`
-	BaseURL   string          `yaml:"base_url"   mapstructure:"base_url"`
-	Timeout   time.Duration   `yaml:"timeout"    mapstructure:"timeout"`
-	RateLimit RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
+// OAuthConfig holds OAuth 2.0 configuration for Claude authentication
+type OAuthConfig struct {
+	ClientID     string `yaml:"client_id"     mapstructure:"client_id"`
+	AuthorizeURL string `yaml:"authorize_url" mapstructure:"authorize_url"`
+	TokenURL     string `yaml:"token_url"     mapstructure:"token_url"`
+	RedirectURI  string `yaml:"redirect_uri"  mapstructure:"redirect_uri"`
 }
 
-// RateLimitConfig holds the configuration for rate limiting
-type RateLimitConfig struct {
-	DailyLimit       int           `yaml:"daily_limit"        mapstructure:"daily_limit"`
-	SyncInterval     time.Duration `yaml:"sync_interval"      mapstructure:"sync_interval"`
-	Timezone         string        `yaml:"timezone"           mapstructure:"timezone"`
-	BackupOnShutdown bool          `yaml:"backup_on_shutdown" mapstructure:"backup_on_shutdown"`
+// ClaudeConfig holds Claude API configuration
+type ClaudeConfig struct {
+	BaseURL string `yaml:"base_url" mapstructure:"base_url"`
 }
 
-// WalletCheckerCacheConfig holds cache configuration for wallet checker
-type WalletCheckerCacheConfig struct {
-	Enabled              bool          `yaml:"enabled"                mapstructure:"enabled"`
-	NormalTTLHours       int           `yaml:"normal_ttl_hours"       mapstructure:"normal_ttl_hours"`
-	CleanupIntervalHours int           `yaml:"cleanup_interval_hours" mapstructure:"cleanup_interval_hours"`
-	MaxSize              int64         `yaml:"max_size"               mapstructure:"max_size"`
-	NumCounters          int64         `yaml:"num_counters"           mapstructure:"num_counters"`
-	BufferItems          int64         `yaml:"buffer_items"           mapstructure:"buffer_items"`
-	DefaultTTL           time.Duration `yaml:"default_ttl"            mapstructure:"default_ttl"`
+// StorageConfig holds data storage configuration
+type StorageConfig struct {
+	DataFolder string `yaml:"data_folder" mapstructure:"data_folder"`
+}
+
+// RetryConfig holds retry logic configuration
+type RetryConfig struct {
+	MaxRetries int           `yaml:"max_retries" mapstructure:"max_retries"`
+	RetryDelay time.Duration `yaml:"retry_delay" mapstructure:"retry_delay"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {
@@ -107,6 +100,35 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 	if config.Logger.Format == "" {
 		config.Logger.Format = "text"
+	}
+
+	// Set default OAuth config if not specified
+	if config.OAuth.AuthorizeURL == "" {
+		config.OAuth.AuthorizeURL = "https://claude.ai/oauth/authorize"
+	}
+	if config.OAuth.TokenURL == "" {
+		config.OAuth.TokenURL = "https://api.claude.ai/oauth/token"
+	}
+	if config.OAuth.RedirectURI == "" {
+		config.OAuth.RedirectURI = fmt.Sprintf("http://%s:%d/oauth/callback", config.Server.Host, config.Server.Port)
+	}
+
+	// Set default Claude config if not specified
+	if config.Claude.BaseURL == "" {
+		config.Claude.BaseURL = "https://api.claude.ai"
+	}
+
+	// Set default storage config if not specified
+	if config.Storage.DataFolder == "" {
+		config.Storage.DataFolder = "~/.clove/data"
+	}
+
+	// Set default retry config if not specified
+	if config.Retry.MaxRetries == 0 {
+		config.Retry.MaxRetries = 3
+	}
+	if config.Retry.RetryDelay == 0 {
+		config.Retry.RetryDelay = 1 * time.Second
 	}
 
 	return &config, nil
