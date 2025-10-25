@@ -105,20 +105,41 @@ func (s *Service) BuildAuthorizationURL(challenge *PKCEChallenge, organizationID
 }
 
 // ExchangeCodeForToken exchanges authorization code for access and refresh tokens
+// Code format: "auth_code#state" - the state is appended after # if present
 func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier string) (*TokenResponse, error) {
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", code)
-	data.Set("client_id", s.clientID)
-	data.Set("redirect_uri", s.redirectURI)
-	data.Set("code_verifier", codeVerifier)
+	// Split code and state (Python format: code contains "auth_code#state")
+	parts := strings.Split(code, "#")
+	authCode := parts[0]
+	var state string
+	if len(parts) > 1 {
+		state = parts[1]
+	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(data.Encode()))
+	// Build JSON payload
+	payload := map[string]string{
+		"code":          authCode,
+		"grant_type":    "authorization_code",
+		"client_id":     s.clientID,
+		"redirect_uri":  s.redirectURI,
+		"code_verifier": codeVerifier,
+	}
+
+	// Add state if present
+	if state != "" {
+		payload["state"] = state
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal token request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(string(jsonData)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -141,17 +162,24 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 
 // RefreshAccessToken uses refresh token to get a new access token
 func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
-	data := url.Values{}
-	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", refreshToken)
-	data.Set("client_id", s.clientID)
+	// Build JSON payload (matching Python implementation)
+	payload := map[string]string{
+		"grant_type":    "refresh_token",
+		"refresh_token": refreshToken,
+		"client_id":     s.clientID,
+	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(data.Encode()))
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal refresh request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(string(jsonData)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create refresh request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
