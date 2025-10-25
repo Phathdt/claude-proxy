@@ -32,8 +32,11 @@ func NewOAuthHandler(oauthService *oauth.Service, accountManager *account.Manage
 }
 
 // GetAuthorizeURL generates and returns the OAuth authorization URL with PKCE challenge
-// GET /oauth/authorize
+// GET /oauth/authorize?org_id=xxx (org_id is optional)
 func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
+	// Get optional organization ID from query parameter
+	orgID := c.Query("org_id")
+
 	// Generate PKCE challenge
 	challenge, err := h.oauthService.GeneratePKCEChallenge()
 	if err != nil {
@@ -59,8 +62,8 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 		h.challengesMu.Unlock()
 	}()
 
-	// Build authorization URL
-	authURL := h.oauthService.BuildAuthorizationURL(challenge)
+	// Build authorization URL with organization ID if provided
+	authURL := h.oauthService.BuildAuthorizationURL(challenge, orgID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"authorization_url": authURL,

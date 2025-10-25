@@ -69,7 +69,8 @@ func (h *AppAccountHandler) CreateAppAccount(c *gin.Context) {
 	// Store in context for callback (in production, use Redis or similar)
 	// For now, we'll rely on the frontend to store and pass back
 
-	authURL := h.oauthService.BuildAuthorizationURL(challenge)
+	// Build authorization URL with organization ID if provided
+	authURL := h.oauthService.BuildAuthorizationURL(challenge, req.OrgID)
 
 	c.JSON(http.StatusOK, CreateAppAccountResponse{
 		AuthorizationURL: authURL,

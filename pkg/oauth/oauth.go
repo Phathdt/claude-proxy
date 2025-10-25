@@ -77,7 +77,8 @@ func (s *Service) GeneratePKCEChallenge() (*PKCEChallenge, error) {
 }
 
 // BuildAuthorizationURL builds the OAuth authorization URL
-func (s *Service) BuildAuthorizationURL(challenge *PKCEChallenge) string {
+// If organizationID is provided, it replaces {organization_uuid} placeholder in the authorize URL
+func (s *Service) BuildAuthorizationURL(challenge *PKCEChallenge, organizationID string) string {
 	params := url.Values{}
 	params.Set("client_id", s.clientID)
 	params.Set("response_type", "code")
@@ -86,7 +87,13 @@ func (s *Service) BuildAuthorizationURL(challenge *PKCEChallenge) string {
 	params.Set("code_challenge", challenge.CodeChallenge)
 	params.Set("code_challenge_method", "S256")
 
-	return fmt.Sprintf("%s?%s", s.authorizeURL, params.Encode())
+	// Replace {organization_uuid} placeholder if present
+	authorizeURL := s.authorizeURL
+	if organizationID != "" {
+		authorizeURL = strings.ReplaceAll(authorizeURL, "{organization_uuid}", organizationID)
+	}
+
+	return fmt.Sprintf("%s?%s", authorizeURL, params.Encode())
 }
 
 // ExchangeCodeForToken exchanges authorization code for access and refresh tokens
