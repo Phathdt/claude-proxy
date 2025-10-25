@@ -36,7 +36,10 @@ func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
 // ProxyRequest proxies an HTTP request to Claude API using Resty
 func (c *ClaudeAPIClient) ProxyRequest(ctx context.Context, method, path string, headers map[string]string, body []byte) (*http.Response, error) {
 	// Create Resty request
-	req := c.client.R().SetContext(ctx)
+	// IMPORTANT: Don't read response body automatically
+	req := c.client.R().
+		SetContext(ctx).
+		SetDoNotParseResponse(true) // Keep raw response body
 
 	// Set custom headers (these will override default headers)
 	for key, value := range headers {
@@ -75,6 +78,6 @@ func (c *ClaudeAPIClient) ProxyRequest(ctx context.Context, method, path string,
 		return nil, err
 	}
 
-	// Return the underlying *http.Response
+	// Return the underlying *http.Response with unconsumed body
 	return resp.RawResponse, nil
 }
