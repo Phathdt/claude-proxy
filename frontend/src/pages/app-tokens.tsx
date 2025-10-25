@@ -49,11 +49,11 @@ export function AppTokensPage() {
     try {
       const data = await createMutation.mutateAsync({
         name: appName,
-        org_id: orgId || undefined,
+        orgId: orgId || undefined,
       })
-      setAuthUrl(data.authorization_url)
+      setAuthUrl(data.authorizationUrl)
       setState(data.state)
-      setCodeVerifier(data.code_verifier)
+      setCodeVerifier(data.codeVerifier)
       setStep(2)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start OAuth')
@@ -73,8 +73,8 @@ export function AppTokensPage() {
         name: appName,
         code: authCode,
         state,
-        code_verifier: codeVerifier,
-        org_id: orgId || undefined,
+        codeVerifier: codeVerifier,
+        orgId: orgId || undefined,
       })
       // Success! Close modal
       resetModal()
@@ -149,7 +149,7 @@ export function AppTokensPage() {
                     <TableCell className="font-medium">{account.name}</TableCell>
                     <TableCell>
                       <code className="text-xs bg-muted px-2 py-1 rounded">
-                        {account.organization_uuid}
+                        {account.organizationUuid}
                       </code>
                     </TableCell>
                     <TableCell>
@@ -164,10 +164,10 @@ export function AppTokensPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {new Date(account.expires_at * 1000).toLocaleString()}
+                      {new Date(account.expiresAt * 1000).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(account.created_at * 1000).toLocaleString()}
+                      {new Date(account.createdAt * 1000).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

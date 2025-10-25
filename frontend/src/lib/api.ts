@@ -190,32 +190,32 @@ export const oauthApi = {
 export interface AppAccount {
   id: string
   name: string
-  organization_uuid: string
-  access_token?: string
-  refresh_token?: string
-  expires_at: number
+  organizationUuid: string
+  accessToken?: string
+  refreshToken?: string
+  expiresAt: number
   status: string
-  created_at: number
-  updated_at: number
+  createdAt: number
+  updatedAt: number
 }
 
 export interface CreateAppAccountRequest {
   name: string
-  org_id?: string
+  orgId?: string
 }
 
 export interface CreateAppAccountResponse {
-  authorization_url: string
+  authorizationUrl: string
   state: string
-  code_verifier: string
+  codeVerifier: string
 }
 
 export interface CompleteAppAccountRequest {
   name: string
   code: string
   state: string
-  code_verifier: string
-  org_id?: string
+  codeVerifier: string
+  orgId?: string
 }
 
 export interface CompleteAppAccountResponse {
