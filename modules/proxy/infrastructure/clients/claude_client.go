@@ -5,28 +5,27 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/imroc/req/v3"
 )
 
-// ClaudeAPIClient handles HTTP communication with Claude API using Resty
+// ClaudeAPIClient handles HTTP communication with Claude API using req
 type ClaudeAPIClient struct {
 	baseURL string
-	client  *resty.Client
+	client  *req.Client
 }
 
-// NewClaudeAPIClient creates a new Claude API client with Resty
+// NewClaudeAPIClient creates a new Claude API client with req
 func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
-	client := resty.New()
-	client.SetBaseURL(baseURL)
-	client.SetTimeout(60 * time.Second)
-	client.SetRetryCount(2)
-	client.SetRetryWaitTime(1 * time.Second)
-	client.SetRetryMaxWaitTime(5 * time.Second)
-
-	// Set default headers
-	client.SetHeader("Content-Type", "application/json")
-	client.SetHeader("anthropic-version", "2023-06-01")
-	client.SetHeader("anthropic-beta", "oauth-2025-04-20") // Required for OAuth authentication
+	client := req.C().
+		SetBaseURL(baseURL).
+		SetTimeout(60 * time.Second).
+		SetCommonRetryCount(2).
+		SetCommonRetryBackoffInterval(1*time.Second, 5*time.Second).
+		SetCommonHeaders(map[string]string{
+			"Content-Type":      "application/json",
+			"anthropic-version": "2023-06-01",
+			"anthropic-beta":    "oauth-2025-04-20", // Required for OAuth authentication
+		})
 
 	return &ClaudeAPIClient{
 		baseURL: baseURL,
@@ -34,51 +33,46 @@ func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
 	}
 }
 
-// ProxyRequest proxies an HTTP request to Claude API using Resty
+// ProxyRequest proxies an HTTP request to Claude API using req
 func (c *ClaudeAPIClient) ProxyRequest(ctx context.Context, method, path string, headers map[string]string, body []byte) (*http.Response, error) {
-	// Create Resty request
-	// IMPORTANT: Don't read response body automatically
-	req := c.client.R().
+	// Create req request with context
+	request := c.client.R().
 		SetContext(ctx).
-		SetDoNotParseResponse(true) // Keep raw response body
-
-	// Set custom headers (these will override default headers)
-	for key, value := range headers {
-		req.SetHeader(key, value)
-	}
+		SetHeaders(headers)
 
 	// Set body if present
 	if len(body) > 0 {
-		req.SetBody(body)
+		request.SetBodyBytes(body)
 	}
 
 	// Execute request based on method
-	var resp *resty.Response
+	var resp *req.Response
 	var err error
 
 	switch method {
 	case http.MethodGet:
-		resp, err = req.Get(path)
+		resp, err = request.Get(path)
 	case http.MethodPost:
-		resp, err = req.Post(path)
+		resp, err = request.Post(path)
 	case http.MethodPut:
-		resp, err = req.Put(path)
+		resp, err = request.Put(path)
 	case http.MethodPatch:
-		resp, err = req.Patch(path)
+		resp, err = request.Patch(path)
 	case http.MethodDelete:
-		resp, err = req.Delete(path)
+		resp, err = request.Delete(path)
 	case http.MethodHead:
-		resp, err = req.Head(path)
+		resp, err = request.Head(path)
 	case http.MethodOptions:
-		resp, err = req.Options(path)
+		resp, err = request.Options(path)
 	default:
-		resp, err = req.Execute(method, path)
+		resp, err = request.Send(method, path)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Return the underlying *http.Response with unconsumed body
-	return resp.RawResponse, nil
+	// Return the underlying *http.Response
+	// req automatically handles the response body properly for proxying
+	return resp.Response, nil
 }
