@@ -31,7 +31,7 @@ oauth:
 
 # Claude API configuration
 claude:
-  base_url: 'https://api.claude.ai'
+  base_url: 'https://api.anthropic.com'
 
 # Storage configuration
 storage:

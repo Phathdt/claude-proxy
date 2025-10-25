@@ -42,6 +42,7 @@ func StartAPIServer(
 
 	// Protected Claude API proxy routes (user token authentication via Bearer)
 	v1 := engine.Group("/v1")
+	v1.Use(middleware.OpenAICompatibility())
 	v1.Use(middleware.BearerTokenAuth(tokenService, appLogger))
 	{
 		v1.Any("/*path", proxyHandler.ProxyRequest)
