@@ -32,7 +32,11 @@ func NewAccountService(
 }
 
 // CreateAccount creates a new app account
-func (s *AccountService) CreateAccount(ctx context.Context, name, orgUUID, accessToken, refreshToken string, expiresIn int) (*entities.Account, error) {
+func (s *AccountService) CreateAccount(
+	ctx context.Context,
+	name, orgUUID, accessToken, refreshToken string,
+	expiresIn int,
+) (*entities.Account, error) {
 	if name == "" {
 		return nil, fmt.Errorf("account name is required")
 	}
@@ -73,7 +77,11 @@ func (s *AccountService) ListAccounts(ctx context.Context) ([]*entities.Account,
 }
 
 // UpdateAccount updates an existing account
-func (s *AccountService) UpdateAccount(ctx context.Context, id, name string, status entities.AccountStatus) (*entities.Account, error) {
+func (s *AccountService) UpdateAccount(
+	ctx context.Context,
+	id, name string,
+	status entities.AccountStatus,
+) (*entities.Account, error) {
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err

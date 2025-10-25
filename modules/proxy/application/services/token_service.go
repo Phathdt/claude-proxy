@@ -24,7 +24,11 @@ func NewTokenService(tokenRepo interfaces.TokenRepository) interfaces.TokenServi
 }
 
 // CreateToken creates a new API token
-func (s *TokenService) CreateToken(ctx context.Context, name, key string, status entities.TokenStatus) (*entities.Token, error) {
+func (s *TokenService) CreateToken(
+	ctx context.Context,
+	name, key string,
+	status entities.TokenStatus,
+) (*entities.Token, error) {
 	if name == "" {
 		return nil, fmt.Errorf("token name is required")
 	}
@@ -59,7 +63,11 @@ func (s *TokenService) ListTokens(ctx context.Context) ([]*entities.Token, error
 }
 
 // UpdateToken updates an existing token
-func (s *TokenService) UpdateToken(ctx context.Context, id, name, key string, status entities.TokenStatus) (*entities.Token, error) {
+func (s *TokenService) UpdateToken(
+	ctx context.Context,
+	id, name, key string,
+	status entities.TokenStatus,
+) (*entities.Token, error) {
 	token, err := s.tokenRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err

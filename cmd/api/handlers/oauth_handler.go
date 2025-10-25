@@ -85,10 +85,10 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 
 // ExchangeCodeRequest represents the request body for code exchange
 type ExchangeCodeRequest struct {
-	Name         string `json:"name" binding:"required"`        // Account name
-	Code         string `json:"code" binding:"required"`
-	State        string `json:"state" binding:"required"`
-	CodeVerifier string `json:"code_verifier" binding:"required"`
+	Name         string `json:"name"             binding:"required"` // Account name
+	Code         string `json:"code"             binding:"required"`
+	State        string `json:"state"            binding:"required"`
+	CodeVerifier string `json:"code_verifier"    binding:"required"`
 	OrgID        string `json:"org_id,omitempty"` // Optional organization ID
 }
 

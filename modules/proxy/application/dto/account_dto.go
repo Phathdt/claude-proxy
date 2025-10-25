@@ -4,7 +4,7 @@ import "claude-proxy/modules/proxy/domain/entities"
 
 // CreateAccountRequest represents the request to create an account
 type CreateAccountRequest struct {
-	Name  string `json:"name" binding:"required"`
+	Name  string `json:"name"             binding:"required"`
 	OrgID string `json:"org_id,omitempty"`
 }
 

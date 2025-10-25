@@ -18,7 +18,7 @@ type ClaudeAPIClient struct {
 func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
 	client := req.C().
 		SetBaseURL(baseURL).
-		SetTimeout(60 * time.Second).
+		SetTimeout(60*time.Second).
 		SetCommonRetryCount(2).
 		SetCommonRetryBackoffInterval(1*time.Second, 5*time.Second).
 		SetCommonHeaders(map[string]string{
@@ -34,7 +34,12 @@ func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
 }
 
 // ProxyRequest proxies an HTTP request to Claude API using req
-func (c *ClaudeAPIClient) ProxyRequest(ctx context.Context, method, path string, headers map[string]string, body []byte) (*http.Response, error) {
+func (c *ClaudeAPIClient) ProxyRequest(
+	ctx context.Context,
+	method, path string,
+	headers map[string]string,
+	body []byte,
+) (*http.Response, error) {
 	// Create req request with context
 	request := c.client.R().
 		SetContext(ctx).

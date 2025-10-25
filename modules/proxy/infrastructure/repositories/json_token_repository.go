@@ -43,7 +43,7 @@ func NewJSONTokenRepository(dataFolder string) (interfaces.TokenRepository, erro
 	}
 
 	// Create data folder if it doesn't exist
-	if err := os.MkdirAll(repo.dataFolder, 0700); err != nil {
+	if err := os.MkdirAll(repo.dataFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("failed to create data folder: %w", err)
 	}
 
@@ -187,7 +187,7 @@ func (r *JSONTokenRepository) save() error {
 		return fmt.Errorf("failed to marshal tokens: %w", err)
 	}
 
-	if err := os.WriteFile(tokensFile, data, 0600); err != nil {
+	if err := os.WriteFile(tokensFile, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write tokens file: %w", err)
 	}
 

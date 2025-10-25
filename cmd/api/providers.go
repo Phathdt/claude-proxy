@@ -250,7 +250,10 @@ type oauthRefreshAdapter struct {
 	oauthService *oauth.Service
 }
 
-func (a *oauthRefreshAdapter) RefreshAccessToken(ctx context.Context, refreshToken string) (string, string, int, error) {
+func (a *oauthRefreshAdapter) RefreshAccessToken(
+	ctx context.Context,
+	refreshToken string,
+) (string, string, int, error) {
 	tokenResp, err := a.oauthService.RefreshAccessToken(ctx, refreshToken)
 	if err != nil {
 		return "", "", 0, err

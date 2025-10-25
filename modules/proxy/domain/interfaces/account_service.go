@@ -9,7 +9,11 @@ import (
 // AccountService defines the interface for app account management operations
 type AccountService interface {
 	// CreateAccount creates a new app account
-	CreateAccount(ctx context.Context, name, orgUUID, accessToken, refreshToken string, expiresIn int) (*entities.Account, error)
+	CreateAccount(
+		ctx context.Context,
+		name, orgUUID, accessToken, refreshToken string,
+		expiresIn int,
+	) (*entities.Account, error)
 
 	// GetAccount retrieves an account by ID
 	GetAccount(ctx context.Context, id string) (*entities.Account, error)

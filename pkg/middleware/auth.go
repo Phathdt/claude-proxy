@@ -80,4 +80,3 @@ func BearerTokenAuth(tokenService interfaces.TokenService, logger sctx.Logger) g
 		c.Next()
 	}
 }
-

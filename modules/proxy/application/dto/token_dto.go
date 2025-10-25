@@ -4,28 +4,28 @@ import "claude-proxy/modules/proxy/domain/entities"
 
 // CreateTokenRequest represents the request to create a token
 type CreateTokenRequest struct {
-	Name   string `json:"name" binding:"required"`
-	Key    string `json:"key" binding:"required"`
+	Name   string `json:"name"   binding:"required"`
+	Key    string `json:"key"    binding:"required"`
 	Status string `json:"status" binding:"required,oneof=active inactive"`
 }
 
 // UpdateTokenRequest represents the request to update a token
 type UpdateTokenRequest struct {
-	Name   string `json:"name" binding:"required"`
-	Key    string `json:"key" binding:"required"`
+	Name   string `json:"name"   binding:"required"`
+	Key    string `json:"key"    binding:"required"`
 	Status string `json:"status" binding:"required,oneof=active inactive"`
 }
 
 // TokenResponse represents the token response
 type TokenResponse struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Key        string  `json:"key"`
-	Status     string  `json:"status"`
-	CreatedAt  int64   `json:"created_at"`
-	UpdatedAt  int64   `json:"updated_at"`
-	UsageCount int     `json:"usage_count"`
-	LastUsedAt *int64  `json:"last_used_at,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Key        string `json:"key"`
+	Status     string `json:"status"`
+	CreatedAt  int64  `json:"created_at"`
+	UpdatedAt  int64  `json:"updated_at"`
+	UsageCount int    `json:"usage_count"`
+	LastUsedAt *int64 `json:"last_used_at,omitempty"`
 }
 
 // ToTokenResponse converts entity to response DTO

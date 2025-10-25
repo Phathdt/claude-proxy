@@ -37,7 +37,11 @@ func NewProxyService(
 }
 
 // ProxyRequest proxies an HTTP request to Claude API
-func (s *ProxyService) ProxyRequest(ctx context.Context, token *entities.Token, req *http.Request) (*http.Response, error) {
+func (s *ProxyService) ProxyRequest(
+	ctx context.Context,
+	token *entities.Token,
+	req *http.Request,
+) (*http.Response, error) {
 	// Get valid account
 	account, err := s.GetValidAccount(ctx)
 	if err != nil {
@@ -56,7 +60,6 @@ func (s *ProxyService) ProxyRequest(ctx context.Context, token *entities.Token, 
 
 	// Get valid access token (will refresh if needed)
 	accessToken, err := s.accountSvc.GetValidToken(ctx, account.ID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get valid access token: %w", err)
 	}

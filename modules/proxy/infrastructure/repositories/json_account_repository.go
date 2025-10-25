@@ -41,7 +41,7 @@ func NewJSONAccountRepository(dataFolder string) (interfaces.AccountRepository, 
 	}
 
 	// Create data folder if it doesn't exist
-	if err := os.MkdirAll(repo.dataFolder, 0700); err != nil {
+	if err := os.MkdirAll(repo.dataFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("failed to create data folder: %w", err)
 	}
 
@@ -181,7 +181,7 @@ func (r *JSONAccountRepository) save() error {
 
 	// Write to temporary file first
 	tmpFile := accountsFile + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write accounts file: %w", err)
 	}
 
