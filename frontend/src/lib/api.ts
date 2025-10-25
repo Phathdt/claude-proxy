@@ -1,3 +1,4 @@
+import axios from 'axios'
 import type { Token, CreateTokenDto, UpdateTokenDto } from '@/types/token'
 import type { AppToken, CreateAppTokenDto, UpdateAppTokenDto } from '@/types/app-token'
 import { mockTokens } from './mock-data'
@@ -5,6 +6,48 @@ import { mockAppTokens } from './mock-app-tokens'
 
 // Simulated delay for API calls
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+
+// Axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers['X-API-Key'] = token
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data?.error?.message) {
+      throw new Error(error.response.data.error.message)
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error)
+    } else if (error.message) {
+      throw new Error(error.message)
+    } else {
+      throw new Error('An unexpected error occurred')
+    }
+  }
+)
 
 let tokens = [...mockTokens]
 let appTokens = [...mockAppTokens]
@@ -72,40 +115,16 @@ export interface LoginResponse {
 export const authApi = {
   // Login with API key
   login: async (apiKey: string): Promise<LoginResponse> => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ api_key: apiKey }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Login failed')
-    }
-
-    return response.json()
+    const response = await apiClient.post('/api/auth/login', { api_key: apiKey })
+    return response.data
   },
 
   // Validate API key
   validate: async (
     apiKey: string
   ): Promise<{ valid: boolean; user?: { id: string; email: string; name: string; role: string } }> => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/validate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ api_key: apiKey }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Validation failed')
-    }
-
-    return response.json()
+    const response = await apiClient.post('/api/auth/validate', { api_key: apiKey })
+    return response.data
   },
 
   logout: async (): Promise<void> => {
@@ -170,8 +189,6 @@ export const appTokenApi = {
 }
 
 // OAuth API (real API calls to backend)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-
 export interface OAuthAuthorizeResponse {
   authorization_url: string
   state: string
@@ -205,37 +222,20 @@ export interface HealthResponse {
 export const oauthApi = {
   // Generate OAuth authorization URL
   getAuthorizeUrl: async (): Promise<OAuthAuthorizeResponse> => {
-    const response = await fetch(`${API_BASE_URL}/oauth/authorize`)
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to get authorization URL')
-    }
-    return response.json()
+    const response = await apiClient.get('/oauth/authorize')
+    return response.data
   },
 
   // Exchange authorization code for tokens
   exchangeCode: async (data: OAuthExchangeRequest): Promise<OAuthExchangeResponse> => {
-    const response = await fetch(`${API_BASE_URL}/oauth/exchange`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to exchange code')
-    }
-    return response.json()
+    const response = await apiClient.post('/oauth/exchange', data)
+    return response.data
   },
 
   // Get health status (includes account info)
   getHealth: async (): Promise<HealthResponse> => {
-    const response = await fetch(`${API_BASE_URL}/health`)
-    if (!response.ok) {
-      throw new Error('Failed to get health status')
-    }
-    return response.json()
+    const response = await apiClient.get('/health')
+    return response.data
   },
 }
 
@@ -282,92 +282,39 @@ export interface UpdateAppAccountRequest {
   status?: string
 }
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('auth_token')
-  return {
-    'Content-Type': 'application/json',
-    'X-API-Key': token || '',
-  }
-}
-
 export const appAccountsApi = {
   // Start OAuth flow - returns authorization URL
   create: async (data: CreateAppAccountRequest): Promise<CreateAppAccountResponse> => {
-    const response = await fetch(`${API_BASE_URL}/api/app-accounts`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to start OAuth')
-    }
-    return response.json()
+    const response = await apiClient.post('/api/app-accounts', data)
+    return response.data
   },
 
   // Complete OAuth flow - exchange code for tokens
   complete: async (data: CompleteAppAccountRequest): Promise<CompleteAppAccountResponse> => {
-    const response = await fetch(`${API_BASE_URL}/api/app-accounts/complete`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to complete OAuth')
-    }
-    return response.json()
+    const response = await apiClient.post('/api/app-accounts/complete', data)
+    return response.data
   },
 
   // List all app accounts
   list: async (): Promise<AppAccount[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/app-accounts`, {
-      headers: getAuthHeaders(),
-    })
-    if (!response.ok) {
-      throw new Error('Failed to load accounts')
-    }
-    const data = await response.json()
-    return data.accounts || []
+    const response = await apiClient.get('/api/app-accounts')
+    return response.data.accounts || []
   },
 
   // Get single app account
   get: async (id: string): Promise<AppAccount> => {
-    const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
-      headers: getAuthHeaders(),
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Account not found')
-    }
-    const data = await response.json()
-    return data.account
+    const response = await apiClient.get(`/api/app-accounts/${id}`)
+    return response.data.account
   },
 
   // Update app account
   update: async (id: string, data: UpdateAppAccountRequest): Promise<AppAccount> => {
-    const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to update account')
-    }
-    const result = await response.json()
-    return result.account
+    const response = await apiClient.put(`/api/app-accounts/${id}`, data)
+    return response.data.account
   },
 
   // Delete app account
   delete: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/app-accounts/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to delete account')
-    }
+    await apiClient.delete(`/api/app-accounts/${id}`)
   },
 }
