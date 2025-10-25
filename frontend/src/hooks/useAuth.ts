@@ -30,7 +30,8 @@ export function useAuth() {
   const validateToken = async () => {
     const token = localStorage.getItem('auth_token')
 
-    if (!token) {
+    // Check if token exists and is valid (not 'undefined' or 'null' strings)
+    if (!token || token === 'undefined' || token === 'null') {
       setAuthState({
         isAuthenticated: false,
         isLoading: false,

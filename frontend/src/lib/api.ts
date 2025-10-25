@@ -18,7 +18,8 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token')
-    if (token) {
+    // Only set header if token exists and is not empty
+    if (token && token !== 'undefined' && token !== 'null') {
       config.headers['X-API-Key'] = token
     }
 

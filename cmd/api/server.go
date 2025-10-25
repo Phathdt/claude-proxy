@@ -30,6 +30,7 @@ func StartAPIServer(
 	appLogger sctx.Logger,
 	tokenHandler *handlers.TokenHandler,
 	proxyHandler *handlers.ProxyHandler,
+	authHandler *handlers.AuthHandler,
 	tokenService interfaces.TokenService,
 ) {
 	// Health check (public)
@@ -56,6 +57,13 @@ func StartAPIServer(
 				"status": "healthy",
 			})
 		})
+
+		// Auth routes (public)
+		auth := api.Group("/auth")
+		{
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/validate", authHandler.Validate)
+		}
 
 		// Token routes (protected with API key)
 		tokens := api.Group("/tokens")
