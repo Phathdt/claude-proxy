@@ -57,28 +57,59 @@ export const tokenApi = {
   },
 }
 
-// Mock login API
+// Auth API (real API calls to backend)
+export interface LoginResponse {
+  success: boolean
+  token: string
+  user: {
+    id: string
+    email: string
+    name: string
+    role: string
+  }
+}
+
 export const authApi = {
-  login: async (
-    email: string,
-    password: string
-  ): Promise<{ token: string; user: { id: string; email: string; name: string } }> => {
-    await delay(1000)
-    // Mock authentication - accept any email/password
-    if (!email || !password) {
-      throw new Error('Email and password are required')
-    }
-    return {
-      token: 'mock_auth_token_' + Math.random().toString(36).substring(7),
-      user: {
-        id: '1',
-        email,
-        name: 'Admin User',
+  // Login with API key
+  login: async (apiKey: string): Promise<LoginResponse> => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ api_key: apiKey }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Login failed')
     }
+
+    return response.json()
+  },
+
+  // Validate API key
+  validate: async (
+    apiKey: string
+  ): Promise<{ valid: boolean; user?: { id: string; email: string; name: string; role: string } }> => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/validate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ api_key: apiKey }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Validation failed')
+    }
+
+    return response.json()
   },
 
   logout: async (): Promise<void> => {
+    // Just clear local storage, no backend call needed
     await delay(300)
   },
 }
@@ -139,7 +170,7 @@ export const appTokenApi = {
 }
 
 // OAuth API (real API calls to backend)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5201'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export interface OAuthAuthorizeResponse {
   authorization_url: string

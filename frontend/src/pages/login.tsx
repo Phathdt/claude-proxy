@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, Mail } from 'lucide-react'
+import { Key } from 'lucide-react'
 import { authApi } from '@/lib/api'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [apiKey, setApiKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -16,8 +15,10 @@ export function LoginPage() {
     setLoading(true)
 
     try {
-      const { token } = await authApi.login(email, password)
+      const { token, user } = await authApi.login(apiKey)
+      // Store both the API key (as auth_token) and user info
       localStorage.setItem('auth_token', token)
+      localStorage.setItem('user', JSON.stringify(user))
       navigate('/admin/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -35,7 +36,7 @@ export function LoginPage() {
         </div>
 
         <div className="border-border bg-card rounded-lg border p-8 shadow-lg">
-          <h2 className="text-card-foreground mb-6 text-2xl font-semibold">Sign in</h2>
+          <h2 className="text-card-foreground mb-6 text-2xl font-semibold">Admin Sign In</h2>
 
           {error && (
             <div className="bg-destructive/10 text-destructive mb-4 rounded-md p-3 text-sm">
@@ -45,39 +46,24 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="text-foreground mb-2 block text-sm font-medium">
-                Email
+              <label htmlFor="apiKey" className="text-foreground mb-2 block text-sm font-medium">
+                API Key
               </label>
               <div className="relative">
-                <Mail className="text-muted-foreground absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
+                <Key className="text-muted-foreground absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="border-input bg-background text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring w-full rounded-md border py-2 pr-3 pl-10 focus:ring-2 focus:outline-none"
-                  placeholder="admin@example.com"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="text-foreground mb-2 block text-sm font-medium">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="text-muted-foreground absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
-                <input
-                  id="password"
+                  id="apiKey"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
                   required
                   className="border-input bg-background text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring w-full rounded-md border py-2 pr-3 pl-10 focus:ring-2 focus:outline-none"
-                  placeholder="••••••••"
+                  placeholder="Enter your API key"
                 />
               </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Use the API key from your config.yaml
+              </p>
             </div>
 
             <button
@@ -89,9 +75,10 @@ export function LoginPage() {
             </button>
           </form>
 
-          <p className="text-muted-foreground mt-4 text-center text-xs">
-            Mock login - use any email/password
-          </p>
+          <div className="text-muted-foreground mt-4 text-center text-xs">
+            <p>Configure your API key in <code className="bg-muted px-1 rounded">config.yaml</code></p>
+            <p className="mt-1">under <code className="bg-muted px-1 rounded">auth.api_key</code></p>
+          </div>
         </div>
       </div>
     </div>

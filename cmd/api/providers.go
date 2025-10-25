@@ -42,6 +42,7 @@ var CloveProviders = fx.Options(
 		NewOAuthHandler,
 		NewMessagesHandler,
 		NewHealthHandler,
+		NewAuthHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -286,4 +287,9 @@ func NewMessagesHandler(claudeClient *claude.Client, accountManager *account.Man
 // NewHealthHandler creates a new health handler
 func NewHealthHandler(accountManager *account.Manager) *handlers.HealthHandler {
 	return handlers.NewHealthHandler(accountManager)
+}
+
+// NewAuthHandler creates a new auth handler
+func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
+	return handlers.NewAuthHandler(cfg)
 }

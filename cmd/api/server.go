@@ -30,6 +30,7 @@ func StartAPIServer(
 	oauthHandler *handlers.OAuthHandler,
 	messagesHandler *handlers.MessagesHandler,
 	healthHandler *handlers.HealthHandler,
+	authHandler *handlers.AuthHandler,
 ) {
 	// OAuth routes (public, no auth required)
 	oauth := engine.Group("/oauth")
@@ -53,6 +54,13 @@ func StartAPIServer(
 	api := engine.Group("/api")
 	{
 		api.GET("/health", healthHandler.Check)
+
+		// Auth routes (public)
+		auth := api.Group("/auth")
+		{
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/validate", authHandler.Validate)
+		}
 	}
 
 	// Serve static frontend files
@@ -112,6 +120,9 @@ func StartAPIServer(
 			appLogger.Info("  Health:")
 			appLogger.Info("    GET  /health          - Health check with account status")
 			appLogger.Info("    GET  /api/health      - Health check (legacy)")
+			appLogger.Info("  Auth:")
+			appLogger.Info("    POST /api/auth/login     - Admin login with API key")
+			appLogger.Info("    POST /api/auth/validate  - Validate API key")
 
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
