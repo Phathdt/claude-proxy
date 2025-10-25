@@ -1,56 +1,80 @@
 package clients
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"net/http"
+	"time"
+
+	"github.com/go-resty/resty/v2"
 )
 
-// ClaudeAPIClient handles HTTP communication with Claude API
+// ClaudeAPIClient handles HTTP communication with Claude API using Resty
 type ClaudeAPIClient struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL string
+	client  *resty.Client
 }
 
-// NewClaudeAPIClient creates a new Claude API client
+// NewClaudeAPIClient creates a new Claude API client with Resty
 func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
+	client := resty.New()
+	client.SetBaseURL(baseURL)
+	client.SetTimeout(60 * time.Second)
+	client.SetRetryCount(2)
+	client.SetRetryWaitTime(1 * time.Second)
+	client.SetRetryMaxWaitTime(5 * time.Second)
+
+	// Set default headers
+	client.SetHeader("Content-Type", "application/json")
+	client.SetHeader("anthropic-version", "2023-06-01")
+
 	return &ClaudeAPIClient{
-		baseURL:    baseURL,
-		httpClient: &http.Client{},
+		baseURL: baseURL,
+		client:  client,
 	}
 }
 
-// ProxyRequest proxies an HTTP request to Claude API
+// ProxyRequest proxies an HTTP request to Claude API using Resty
 func (c *ClaudeAPIClient) ProxyRequest(ctx context.Context, method, path string, headers map[string]string, body []byte) (*http.Response, error) {
-	// Build target URL
-	targetURL := c.baseURL + path
+	// Create Resty request
+	req := c.client.R().SetContext(ctx)
 
-	// Create request
-	var bodyReader io.Reader
-	if len(body) > 0 {
-		bodyReader = bytes.NewReader(body)
+	// Set custom headers (these will override default headers)
+	for key, value := range headers {
+		req.SetHeader(key, value)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, targetURL, bodyReader)
+	// Set body if present
+	if len(body) > 0 {
+		req.SetBody(body)
+	}
+
+	// Execute request based on method
+	var resp *resty.Response
+	var err error
+
+	switch method {
+	case http.MethodGet:
+		resp, err = req.Get(path)
+	case http.MethodPost:
+		resp, err = req.Post(path)
+	case http.MethodPut:
+		resp, err = req.Put(path)
+	case http.MethodPatch:
+		resp, err = req.Patch(path)
+	case http.MethodDelete:
+		resp, err = req.Delete(path)
+	case http.MethodHead:
+		resp, err = req.Head(path)
+	case http.MethodOptions:
+		resp, err = req.Options(path)
+	default:
+		resp, err = req.Execute(method, path)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	// Set headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	// Set default headers if not present
-	if req.Header.Get("Content-Type") == "" && len(body) > 0 {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	if req.Header.Get("anthropic-version") == "" {
-		req.Header.Set("anthropic-version", "2023-06-01")
-	}
-
-	// Send request
-	return c.httpClient.Do(req)
+	// Return the underlying *http.Response
+	return resp.RawResponse, nil
 }

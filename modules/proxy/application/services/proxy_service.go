@@ -15,10 +15,10 @@ import (
 
 // ProxyService implements the proxy business logic
 type ProxyService struct {
-	accountRepo   interfaces.AccountRepository
-	accountSvc    interfaces.AccountService
-	claudeClient  *clients.ClaudeAPIClient
-	logger        sctx.Logger
+	accountRepo  interfaces.AccountRepository
+	accountSvc   interfaces.AccountService
+	claudeClient *clients.ClaudeAPIClient
+	logger       sctx.Logger
 }
 
 // NewProxyService creates a new proxy service
@@ -56,6 +56,7 @@ func (s *ProxyService) ProxyRequest(ctx context.Context, token *entities.Token, 
 
 	// Get valid access token (will refresh if needed)
 	accessToken, err := s.accountSvc.GetValidToken(ctx, account.ID)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get valid access token: %w", err)
 	}
