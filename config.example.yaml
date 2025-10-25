@@ -30,8 +30,10 @@ oauth:
   scope: 'user:profile user:inference'
 
 # Claude API configuration
+# Using Claude.ai web API (compatible with OAuth tokens)
+# For public API, use: https://api.anthropic.com
 claude:
-  base_url: 'https://api.anthropic.com'
+  base_url: 'https://claude.ai/api'
 
 # Storage configuration
 storage:
