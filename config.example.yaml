@@ -3,41 +3,34 @@
 
 # Server configuration
 server:
-  host: "0.0.0.0"
-  port: 5201
+  host: '0.0.0.0'
+  port: 4000
 
 # Logger configuration
 logger:
-  level: "info"    # debug, info, warn, error
-  format: "json"   # json or text
+  level: 'info' # debug, info, warn, error
+  format: 'text' # json or text
 
 # API key for protecting the proxy endpoints
 auth:
-  api_key: "your-secret-api-key-here"
+  api_key: 'your-secret-api-key-here'
 
 # OAuth 2.0 configuration for Claude authentication
 oauth:
-  client_id: "your-claude-oauth-client-id"
-  authorize_url: "https://claude.ai/oauth/authorize"
-  token_url: "https://api.claude.ai/oauth/token"
-  redirect_uri: "http://localhost:5201/oauth/callback"
+  client_id: 'your-claude-oauth-client-id'
+  authorize_url: 'https://claude.ai/oauth/authorize'
+  token_url: 'https://api.claude.ai/oauth/token'
+  redirect_uri: 'http://localhost:5201/oauth/callback'
 
 # Claude API configuration
 claude:
-  base_url: "https://api.claude.ai"
+  base_url: 'https://api.claude.ai'
 
 # Storage configuration
 storage:
-  data_folder: "~/.clove/data"
+  data_folder: '~/.clove/data'
 
 # Retry configuration
 retry:
   max_retries: 3
   retry_delay: 1s
-
-# Telegram notifications (optional)
-telegram:
-  enabled: false
-  bot_token: ""
-  chat_id: ""
-  timeout: 10s

@@ -7,6 +7,8 @@ import { TokensPage } from './pages/tokens'
 import { AppTokensPage } from './pages/app-tokens'
 import OAuthSetup from './pages/oauth-setup'
 import { AdminLayout } from './components/layout/admin-layout'
+import { useAuth } from './hooks/useAuth'
+import { Loader2 } from 'lucide-react'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,8 +20,26 @@ const queryClient = new QueryClient({
 })
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = localStorage.getItem('auth_token')
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+  const { isAuthenticated, isLoading } = useAuth()
+
+  // Show loading spinner while validating token
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-2 text-sm text-muted-foreground">Validating authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
 }
 
 function App() {

@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Key, LogOut, Shield, Link2 } from 'lucide-react'
+import { LayoutDashboard, Key, LogOut, Shield, Link2, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
@@ -12,9 +13,10 @@ const navigation = [
 export function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user, logout } = useAuth()
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token')
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 
@@ -52,6 +54,17 @@ export function AdminLayout() {
 
           {/* User section */}
           <div className="border-sidebar-border border-t p-4">
+            {user && (
+              <div className="mb-3 rounded-lg bg-sidebar-accent/30 p-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-sidebar-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sidebar-foreground truncate text-sm font-medium">{user.name}</p>
+                    <p className="text-sidebar-foreground/70 truncate text-xs">{user.email}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <button
               onClick={handleLogout}
               className="text-sidebar-foreground hover:bg-sidebar-accent/50 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
