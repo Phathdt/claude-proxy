@@ -12,6 +12,7 @@ import (
 	"claude-proxy/config"
 	"claude-proxy/pkg/handlers"
 	"claude-proxy/pkg/middleware"
+	"claude-proxy/pkg/token"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"
@@ -34,6 +35,7 @@ func StartAPIServer(
 	appAccountHandler *handlers.AppAccountHandler,
 	tokensHandler *handlers.TokensHandler,
 	proxyHandler *handlers.ProxyHandler,
+	tokenManager *token.Manager,
 ) {
 	// OAuth routes (public, no auth required)
 	oauth := engine.Group("/oauth")
@@ -48,6 +50,7 @@ func StartAPIServer(
 
 	// Protected Claude API proxy routes (user token authentication via Bearer)
 	v1 := engine.Group("/v1")
+	v1.Use(middleware.BearerTokenAuth(tokenManager, appLogger))
 	{
 		v1.GET("/models", proxyHandler.GetModels)
 		v1.POST("/messages", proxyHandler.CreateMessage)

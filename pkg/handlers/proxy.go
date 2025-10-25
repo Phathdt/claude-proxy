@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strings"
 
 	"claude-proxy/pkg/account"
 	"claude-proxy/pkg/errors"
@@ -38,35 +37,14 @@ func NewProxyHandler(
 	}
 }
 
-// ProxyToClaudeAPI proxies requests to Claude API with token verification
+// ProxyToClaudeAPI proxies requests to Claude API
 func (h *ProxyHandler) ProxyToClaudeAPI(c *gin.Context) {
-	// Extract bearer token from Authorization header
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		panic(errors.NewUnauthorizedError("missing authorization header"))
+	// Get validated token from context (set by BearerTokenAuth middleware)
+	validatedToken, exists := c.Get("validated_token")
+	if !exists {
+		panic(errors.NewUnauthorizedError("token not found in context"))
 	}
-
-	// Parse bearer token
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		panic(errors.NewUnauthorizedError("invalid authorization header format"))
-	}
-	bearerToken := parts[1]
-
-	// Validate token using token manager
-	validatedToken, err := h.tokenManager.ValidateToken(bearerToken)
-	if err != nil {
-		h.logger.Withs(sctx.Fields{
-			"error": err.Error(),
-		}).Warn("Token validation failed")
-		panic(errors.NewUnauthorizedError("invalid or inactive token"))
-	}
-
-	h.logger.Withs(sctx.Fields{
-		"token_id":   validatedToken.ID,
-		"token_name": validatedToken.Name,
-		"path":       c.Request.URL.Path,
-	}).Info("Token validated successfully")
+	userToken := validatedToken.(*token.Token)
 
 	// Get active app account
 	accounts := h.accountManager.ListAccounts()
@@ -95,6 +73,8 @@ func (h *ProxyHandler) ProxyToClaudeAPI(c *gin.Context) {
 	}
 
 	h.logger.Withs(sctx.Fields{
+		"token_id":     userToken.ID,
+		"token_name":   userToken.Name,
 		"account_id":   selectedAccount.ID,
 		"account_name": selectedAccount.Name,
 		"org_uuid":     selectedAccount.OrganizationUUID,
@@ -149,7 +129,7 @@ func (h *ProxyHandler) ProxyToClaudeAPI(c *gin.Context) {
 	h.logger.Withs(sctx.Fields{
 		"method":      c.Request.Method,
 		"target_url":  targetURL,
-		"token_id":    validatedToken.ID,
+		"token_id":    userToken.ID,
 		"account_id":  selectedAccount.ID,
 	}).Info("Proxying request to Claude API")
 
@@ -171,7 +151,7 @@ func (h *ProxyHandler) ProxyToClaudeAPI(c *gin.Context) {
 
 	h.logger.Withs(sctx.Fields{
 		"status_code": resp.StatusCode,
-		"token_id":    validatedToken.ID,
+		"token_id":    userToken.ID,
 		"account_id":  selectedAccount.ID,
 	}).Info("Received response from Claude API")
 
