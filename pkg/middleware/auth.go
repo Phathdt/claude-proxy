@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/pkg/errors"
-	"claude-proxy/pkg/token"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"
@@ -45,7 +45,7 @@ func APIKeyAuth(apiKey string) gin.HandlerFunc {
 }
 
 // BearerTokenAuth creates middleware for Bearer token authentication
-func BearerTokenAuth(tokenManager *token.Manager, logger sctx.Logger) gin.HandlerFunc {
+func BearerTokenAuth(tokenService interfaces.TokenService, logger sctx.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract bearer token from Authorization header
 		authHeader := c.GetHeader("Authorization")
@@ -60,8 +60,8 @@ func BearerTokenAuth(tokenManager *token.Manager, logger sctx.Logger) gin.Handle
 		}
 		bearerToken := parts[1]
 
-		// Validate token using token manager
-		validatedToken, err := tokenManager.ValidateToken(bearerToken)
+		// Validate token using token service
+		validatedToken, err := tokenService.ValidateToken(c.Request.Context(), bearerToken)
 		if err != nil {
 			logger.Withs(sctx.Fields{
 				"error": err.Error(),

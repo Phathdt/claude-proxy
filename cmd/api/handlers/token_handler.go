@@ -3,52 +3,50 @@ package handlers
 import (
 	"net/http"
 
-	"claude-proxy/pkg/token"
+	"claude-proxy/modules/proxy/application/dto"
+	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/proxy/domain/interfaces"
 
 	"github.com/gin-gonic/gin"
 )
 
-// TokensHandler handles token management endpoints
-type TokensHandler struct {
-	tokenManager *token.Manager
+// TokenHandler handles HTTP requests for token management
+type TokenHandler struct {
+	tokenService interfaces.TokenService
 }
 
-// NewTokensHandler creates a new tokens handler
-func NewTokensHandler(tokenManager *token.Manager) *TokensHandler {
-	return &TokensHandler{
-		tokenManager: tokenManager,
+// NewTokenHandler creates a new token handler
+func NewTokenHandler(tokenService interfaces.TokenService) *TokenHandler {
+	return &TokenHandler{
+		tokenService: tokenService,
 	}
-}
-
-// CreateTokenRequest represents the request to create a token
-type CreateTokenRequest struct {
-	Name   string `json:"name" binding:"required"`
-	Key    string `json:"key" binding:"required"`
-	Status string `json:"status" binding:"required,oneof=active inactive"`
-}
-
-// UpdateTokenRequest represents the request to update a token
-type UpdateTokenRequest struct {
-	Name   string `json:"name" binding:"required"`
-	Key    string `json:"key" binding:"required"`
-	Status string `json:"status" binding:"required,oneof=active inactive"`
 }
 
 // ListTokens lists all tokens
 // GET /api/tokens
-func (h *TokensHandler) ListTokens(c *gin.Context) {
-	tokens := h.tokenManager.ListTokens()
+func (h *TokenHandler) ListTokens(c *gin.Context) {
+	tokens, err := h.tokenService.ListTokens(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
+				"type":    "internal_error",
+				"message": err.Error(),
+			},
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"tokens": tokens,
+		"tokens": dto.ToTokenResponses(tokens),
 	})
 }
 
 // GetToken gets a single token
 // GET /api/tokens/:id
-func (h *TokensHandler) GetToken(c *gin.Context) {
+func (h *TokenHandler) GetToken(c *gin.Context) {
 	id := c.Param("id")
 
-	token, err := h.tokenManager.GetToken(id)
+	token, err := h.tokenService.GetToken(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": gin.H{
@@ -60,14 +58,14 @@ func (h *TokensHandler) GetToken(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
+		"token": dto.ToTokenResponse(token),
 	})
 }
 
 // CreateToken creates a new token
 // POST /api/tokens
-func (h *TokensHandler) CreateToken(c *gin.Context) {
-	var req CreateTokenRequest
+func (h *TokenHandler) CreateToken(c *gin.Context) {
+	var req dto.CreateTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
@@ -78,7 +76,12 @@ func (h *TokensHandler) CreateToken(c *gin.Context) {
 		return
 	}
 
-	token, err := h.tokenManager.CreateToken(req.Name, req.Key, req.Status)
+	token, err := h.tokenService.CreateToken(
+		c.Request.Context(),
+		req.Name,
+		req.Key,
+		entities.TokenStatus(req.Status),
+	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
@@ -92,16 +95,16 @@ func (h *TokensHandler) CreateToken(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"message": "Token created successfully",
-		"token":   token,
+		"token":   dto.ToTokenResponse(token),
 	})
 }
 
 // UpdateToken updates a token
 // PUT /api/tokens/:id
-func (h *TokensHandler) UpdateToken(c *gin.Context) {
+func (h *TokenHandler) UpdateToken(c *gin.Context) {
 	id := c.Param("id")
 
-	var req UpdateTokenRequest
+	var req dto.UpdateTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
@@ -112,7 +115,13 @@ func (h *TokensHandler) UpdateToken(c *gin.Context) {
 		return
 	}
 
-	token, err := h.tokenManager.UpdateToken(id, req.Name, req.Key, req.Status)
+	token, err := h.tokenService.UpdateToken(
+		c.Request.Context(),
+		id,
+		req.Name,
+		req.Key,
+		entities.TokenStatus(req.Status),
+	)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": gin.H{
@@ -126,16 +135,16 @@ func (h *TokensHandler) UpdateToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Token updated successfully",
-		"token":   token,
+		"token":   dto.ToTokenResponse(token),
 	})
 }
 
 // DeleteToken deletes a token
 // DELETE /api/tokens/:id
-func (h *TokensHandler) DeleteToken(c *gin.Context) {
+func (h *TokenHandler) DeleteToken(c *gin.Context) {
 	id := c.Param("id")
 
-	if err := h.tokenManager.DeleteToken(id); err != nil {
+	if err := h.tokenService.DeleteToken(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": gin.H{
 				"type":    "not_found_error",
@@ -153,8 +162,8 @@ func (h *TokensHandler) DeleteToken(c *gin.Context) {
 
 // GenerateKey generates a random API key
 // POST /api/tokens/generate-key
-func (h *TokensHandler) GenerateKey(c *gin.Context) {
-	key, err := token.GenerateKey()
+func (h *TokenHandler) GenerateKey(c *gin.Context) {
+	key, err := h.tokenService.GenerateKey()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{

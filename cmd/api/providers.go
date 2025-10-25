@@ -6,14 +6,15 @@ import (
 	"net/http"
 	"time"
 
+	"claude-proxy/cmd/api/handlers"
 	"claude-proxy/config"
-	"claude-proxy/pkg/account"
-	"claude-proxy/pkg/claude"
+	"claude-proxy/modules/proxy/application/services"
+	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/proxy/infrastructure/clients"
+	"claude-proxy/modules/proxy/infrastructure/repositories"
 	"claude-proxy/pkg/errors"
-	"claude-proxy/pkg/handlers"
 	"claude-proxy/pkg/oauth"
 	"claude-proxy/pkg/telegram"
-	"claude-proxy/pkg/token"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"
@@ -35,21 +36,17 @@ var CloveProviders = fx.Options(
 	fx.Provide(
 		// OAuth service
 		NewOAuthService,
-		// Account manager with token refresher
-		NewAccountManager,
-		// Multi-account manager
-		NewMultiAccountManager,
-		// Token manager
-		NewTokenManager,
-		// Claude API client
-		NewClaudeClient,
+		// Infrastructure - Repositories
+		NewTokenRepository,
+		NewAccountRepository,
+		// Infrastructure - Clients
+		NewClaudeAPIClient,
+		// Application - Services
+		NewTokenService,
+		NewAccountService,
+		NewProxyService,
 		// Handlers
-		NewOAuthHandler,
-		NewMessagesHandler,
-		NewHealthHandler,
-		NewAuthHandler,
-		NewAppAccountHandler,
-		NewTokensHandler,
+		NewTokenHandler,
 		NewProxyHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
@@ -245,7 +242,7 @@ func NewOAuthService(cfg *config.Config) *oauth.Service {
 	)
 }
 
-// oauthRefreshAdapter adapts OAuth service to account.TokenRefresher interface
+// oauthRefreshAdapter adapts OAuth service to interfaces.TokenRefresher interface
 type oauthRefreshAdapter struct {
 	oauthService *oauth.Service
 }
@@ -258,104 +255,75 @@ func (a *oauthRefreshAdapter) RefreshAccessToken(ctx context.Context, refreshTok
 	return tokenResp.AccessToken, tokenResp.RefreshToken, tokenResp.ExpiresIn, nil
 }
 
-// NewAccountManager creates a new account manager
-func NewAccountManager(cfg *config.Config, oauthService *oauth.Service, appLogger sctx.Logger) (*account.Manager, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "account-manager"})
+// NewTokenRepository creates a new JSON token repository
+func NewTokenRepository(cfg *config.Config, appLogger sctx.Logger) (interfaces.TokenRepository, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "token-repository"})
+
+	repo, err := repositories.NewJSONTokenRepository(cfg.Storage.DataFolder)
+	if err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create token repository")
+		return nil, fmt.Errorf("failed to create token repository: %w", err)
+	}
+
+	logger.Info("Token repository initialized successfully")
+	return repo, nil
+}
+
+// NewAccountRepository creates a new JSON account repository
+func NewAccountRepository(cfg *config.Config, appLogger sctx.Logger) (interfaces.AccountRepository, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "account-repository"})
+
+	repo, err := repositories.NewJSONAccountRepository(cfg.Storage.DataFolder)
+	if err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create account repository")
+		return nil, fmt.Errorf("failed to create account repository: %w", err)
+	}
+
+	logger.Info("Account repository initialized successfully")
+	return repo, nil
+}
+
+// NewClaudeAPIClient creates a new Claude API client
+func NewClaudeAPIClient(cfg *config.Config) *clients.ClaudeAPIClient {
+	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL)
+}
+
+// NewTokenService creates a new token service
+func NewTokenService(tokenRepo interfaces.TokenRepository) interfaces.TokenService {
+	return services.NewTokenService(tokenRepo)
+}
+
+// NewAccountService creates a new account service
+func NewAccountService(
+	accountRepo interfaces.AccountRepository,
+	oauthService *oauth.Service,
+	appLogger sctx.Logger,
+) interfaces.AccountService {
+	logger := appLogger.Withs(sctx.Fields{"component": "account-service"})
 
 	// Create adapter for token refresh
 	refresher := &oauthRefreshAdapter{oauthService: oauthService}
 
-	// Create account manager
-	manager := account.NewManager(cfg.Storage.DataFolder, refresher)
-
-	// Initialize (create data folder and load existing account)
-	if err := manager.Initialize(); err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Error("Failed to initialize account manager")
-		return nil, fmt.Errorf("failed to initialize account manager: %w", err)
-	}
-
-	logger.Info("Account manager initialized successfully")
-	return manager, nil
+	return services.NewAccountService(accountRepo, refresher, logger)
 }
 
-// NewClaudeClient creates a new Claude API client
-func NewClaudeClient(cfg *config.Config) *claude.Client {
-	return claude.NewClient(cfg.Claude.BaseURL)
+// NewProxyService creates a new proxy service
+func NewProxyService(
+	accountRepo interfaces.AccountRepository,
+	accountSvc interfaces.AccountService,
+	claudeClient *clients.ClaudeAPIClient,
+	appLogger sctx.Logger,
+) interfaces.ProxyService {
+	logger := appLogger.Withs(sctx.Fields{"component": "proxy-service"})
+	return services.NewProxyService(accountRepo, accountSvc, claudeClient, logger)
 }
 
-// NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(oauthService *oauth.Service, accountManager *account.Manager, cfg *config.Config) *handlers.OAuthHandler {
-	return handlers.NewOAuthHandler(oauthService, accountManager, cfg.Claude.BaseURL)
-}
-
-// NewMessagesHandler creates a new messages handler
-func NewMessagesHandler(claudeClient *claude.Client, accountManager *account.Manager, cfg *config.Config) *handlers.MessagesHandler {
-	return handlers.NewMessagesHandler(claudeClient, accountManager, cfg)
-}
-
-// NewHealthHandler creates a new health handler
-func NewHealthHandler(accountManager *account.Manager) *handlers.HealthHandler {
-	return handlers.NewHealthHandler(accountManager)
-}
-
-// NewAuthHandler creates a new auth handler
-func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
-	return handlers.NewAuthHandler(cfg)
-}
-
-// NewMultiAccountManager creates a new multi-account manager
-func NewMultiAccountManager(cfg *config.Config, oauthService *oauth.Service, appLogger sctx.Logger) (*account.MultiAccountManager, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "multi-account-manager"})
-
-	// Create adapter for token refresh
-	refresher := &oauthRefreshAdapter{oauthService: oauthService}
-
-	// Create multi-account manager
-	manager := account.NewMultiAccountManager(cfg.Storage.DataFolder, refresher)
-
-	// Initialize (create data folder and load existing accounts)
-	if err := manager.Initialize(); err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Error("Failed to initialize multi-account manager")
-		return nil, fmt.Errorf("failed to initialize multi-account manager: %w", err)
-	}
-
-	logger.Info("Multi-account manager initialized successfully")
-	return manager, nil
-}
-
-// NewAppAccountHandler creates a new app account handler
-func NewAppAccountHandler(oauthService *oauth.Service, multiAcctMgr *account.MultiAccountManager, cfg *config.Config) *handlers.AppAccountHandler {
-	return handlers.NewAppAccountHandler(oauthService, multiAcctMgr, cfg.Claude.BaseURL)
-}
-
-// NewTokenManager creates a new token manager
-func NewTokenManager(cfg *config.Config, appLogger sctx.Logger) (*token.Manager, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "token-manager"})
-
-	manager := token.NewManager(cfg.Storage.DataFolder)
-
-	// Initialize (create data folder and load existing tokens)
-	if err := manager.Initialize(); err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Error("Failed to initialize token manager")
-		return nil, fmt.Errorf("failed to initialize token manager: %w", err)
-	}
-
-	logger.Info("Token manager initialized successfully")
-	return manager, nil
-}
-
-// NewTokensHandler creates a new tokens handler
-func NewTokensHandler(tokenManager *token.Manager) *handlers.TokensHandler {
-	return handlers.NewTokensHandler(tokenManager)
+// NewTokenHandler creates a new token handler
+func NewTokenHandler(tokenService interfaces.TokenService) *handlers.TokenHandler {
+	return handlers.NewTokenHandler(tokenService)
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(
-	tokenManager *token.Manager,
-	multiAcctMgr *account.MultiAccountManager,
-	cfg *config.Config,
-	appLogger sctx.Logger,
-) *handlers.ProxyHandler {
-	logger := appLogger.Withs(sctx.Fields{"component": "proxy-handler"})
-	return handlers.NewProxyHandler(tokenManager, multiAcctMgr, cfg.Claude.BaseURL, logger)
+func NewProxyHandler(proxyService interfaces.ProxyService) *handlers.ProxyHandler {
+	return handlers.NewProxyHandler(proxyService)
 }

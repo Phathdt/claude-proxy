@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"claude-proxy/cmd/api/handlers"
 	"claude-proxy/config"
-	"claude-proxy/pkg/handlers"
+	"claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/pkg/middleware"
-	"claude-proxy/pkg/token"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"
@@ -28,68 +28,43 @@ func StartAPIServer(
 	engine *gin.Engine,
 	cfg *config.Config,
 	appLogger sctx.Logger,
-	oauthHandler *handlers.OAuthHandler,
-	messagesHandler *handlers.MessagesHandler,
-	healthHandler *handlers.HealthHandler,
-	authHandler *handlers.AuthHandler,
-	appAccountHandler *handlers.AppAccountHandler,
-	tokensHandler *handlers.TokensHandler,
+	tokenHandler *handlers.TokenHandler,
 	proxyHandler *handlers.ProxyHandler,
-	tokenManager *token.Manager,
+	tokenService interfaces.TokenService,
 ) {
-	// OAuth routes (public, no auth required)
-	oauth := engine.Group("/oauth")
-	{
-		oauth.GET("/authorize", oauthHandler.GetAuthorizeURL)
-		oauth.POST("/exchange", oauthHandler.ExchangeCode)
-		oauth.GET("/callback", oauthHandler.HandleCallback)
-	}
-
 	// Health check (public)
-	engine.GET("/health", healthHandler.Check)
+	engine.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy",
+			"timestamp": fmt.Sprint(engine),
+		})
+	})
 
 	// Protected Claude API proxy routes (user token authentication via Bearer)
 	v1 := engine.Group("/v1")
-	v1.Use(middleware.BearerTokenAuth(tokenManager, appLogger))
+	v1.Use(middleware.BearerTokenAuth(tokenService, appLogger))
 	{
-		v1.GET("/models", proxyHandler.GetModels)
-		v1.POST("/messages", proxyHandler.CreateMessage)
+		v1.Any("/*path", proxyHandler.ProxyRequest)
 	}
 
-	// Legacy /api routes for compatibility
+	// API routes for admin
 	api := engine.Group("/api")
 	{
-		api.GET("/health", healthHandler.Check)
-
-		// Auth routes (public)
-		auth := api.Group("/auth")
-		{
-			auth.POST("/login", authHandler.Login)
-			auth.POST("/validate", authHandler.Validate)
-		}
-
-		// App account routes (protected with API key)
-		appAccounts := api.Group("/app-accounts")
-		appAccounts.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
-		{
-			appAccounts.POST("", appAccountHandler.CreateAppAccount)
-			appAccounts.POST("/complete", appAccountHandler.CompleteAppAccount)
-			appAccounts.GET("", appAccountHandler.ListAppAccounts)
-			appAccounts.GET("/:id", appAccountHandler.GetAppAccount)
-			appAccounts.PUT("/:id", appAccountHandler.UpdateAppAccount)
-			appAccounts.DELETE("/:id", appAccountHandler.DeleteAppAccount)
-		}
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"status": "healthy",
+			})
+		})
 
 		// Token routes (protected with API key)
 		tokens := api.Group("/tokens")
 		tokens.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
 		{
-			tokens.GET("", tokensHandler.ListTokens)
-			tokens.POST("", tokensHandler.CreateToken)
-			tokens.POST("/generate-key", tokensHandler.GenerateKey)
-			tokens.GET("/:id", tokensHandler.GetToken)
-			tokens.PUT("/:id", tokensHandler.UpdateToken)
-			tokens.DELETE("/:id", tokensHandler.DeleteToken)
+			tokens.GET("", tokenHandler.ListTokens)
+			tokens.POST("", tokenHandler.CreateToken)
+			tokens.GET("/:id", tokenHandler.GetToken)
+			tokens.PUT("/:id", tokenHandler.UpdateToken)
+			tokens.DELETE("/:id", tokenHandler.DeleteToken)
 		}
 	}
 
@@ -139,21 +114,19 @@ func StartAPIServer(
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			appLogger.Withs(sctx.Fields{"port": port}).Info("Starting Clove API Server")
+			appLogger.Withs(sctx.Fields{"port": port}).Info("Starting Claude Proxy Server")
 			appLogger.Info("API Endpoints:")
-			appLogger.Info("  OAuth:")
-			appLogger.Info("    GET  /oauth/authorize - Generate OAuth URL (returns state + code_verifier)")
-			appLogger.Info("    POST /oauth/exchange  - Exchange code for tokens (manual flow)")
-			appLogger.Info("    GET  /oauth/callback  - OAuth callback page (shows code to copy)")
 			appLogger.Info("  Claude API Proxy (requires Bearer token):")
-			appLogger.Info("    GET  /v1/models       - Get available Claude models")
-			appLogger.Info("    POST /v1/messages     - Send message to Claude")
+			appLogger.Info("    ANY  /v1/*path        - Proxy all Claude API requests")
 			appLogger.Info("  Health:")
-			appLogger.Info("    GET  /health          - Health check with account status")
+			appLogger.Info("    GET  /health          - Health check")
 			appLogger.Info("    GET  /api/health      - Health check (legacy)")
-			appLogger.Info("  Auth:")
-			appLogger.Info("    POST /api/auth/login     - Admin login with API key")
-			appLogger.Info("    POST /api/auth/validate  - Validate API key")
+			appLogger.Info("  Token Management (requires API key):")
+			appLogger.Info("    GET    /api/tokens    - List all tokens")
+			appLogger.Info("    POST   /api/tokens    - Create new token")
+			appLogger.Info("    GET    /api/tokens/:id - Get token by ID")
+			appLogger.Info("    PUT    /api/tokens/:id - Update token")
+			appLogger.Info("    DELETE /api/tokens/:id - Delete token")
 
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
