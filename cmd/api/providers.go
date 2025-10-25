@@ -49,6 +49,7 @@ var CloveProviders = fx.Options(
 		NewTokenHandler,
 		NewProxyHandler,
 		NewAuthHandler,
+		NewAccountHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -332,4 +333,12 @@ func NewProxyHandler(proxyService interfaces.ProxyService) *handlers.ProxyHandle
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
 	return handlers.NewAuthHandler(cfg)
+}
+
+// NewAccountHandler creates a new account handler
+func NewAccountHandler(
+	accountService interfaces.AccountService,
+	accountRepo interfaces.AccountRepository,
+) *handlers.AccountHandler {
+	return handlers.NewAccountHandler(accountService, accountRepo)
 }

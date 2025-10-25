@@ -10,8 +10,8 @@ type CreateAccountRequest struct {
 
 // UpdateAccountRequest represents the request to update an account
 type UpdateAccountRequest struct {
-	Name   string `json:"name,omitempty"`
-	Status string `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	Name   *string `json:"name,omitempty"`
+	Status *string `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
 }
 
 // AccountResponse represents the account response

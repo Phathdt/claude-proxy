@@ -231,38 +231,26 @@ export interface UpdateAppAccountRequest {
 }
 
 export const appAccountsApi = {
-  // Start OAuth flow - returns authorization URL
-  create: async (data: CreateAppAccountRequest): Promise<CreateAppAccountResponse> => {
-    const response = await apiClient.post('/api/app-accounts', data)
-    return response.data
-  },
-
-  // Complete OAuth flow - exchange code for tokens
-  complete: async (data: CompleteAppAccountRequest): Promise<CompleteAppAccountResponse> => {
-    const response = await apiClient.post('/api/app-accounts/complete', data)
-    return response.data
-  },
-
   // List all app accounts
   list: async (): Promise<AppAccount[]> => {
-    const response = await apiClient.get('/api/app-accounts')
+    const response = await apiClient.get('/api/accounts')
     return response.data.accounts || []
   },
 
   // Get single app account
   get: async (id: string): Promise<AppAccount> => {
-    const response = await apiClient.get(`/api/app-accounts/${id}`)
+    const response = await apiClient.get(`/api/accounts/${id}`)
     return response.data.account
   },
 
   // Update app account
   update: async (id: string, data: UpdateAppAccountRequest): Promise<AppAccount> => {
-    const response = await apiClient.put(`/api/app-accounts/${id}`, data)
+    const response = await apiClient.put(`/api/accounts/${id}`, data)
     return response.data.account
   },
 
   // Delete app account
   delete: async (id: string): Promise<void> => {
-    await apiClient.delete(`/api/app-accounts/${id}`)
+    await apiClient.delete(`/api/accounts/${id}`)
   },
 }

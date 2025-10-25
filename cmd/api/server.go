@@ -31,6 +31,7 @@ func StartAPIServer(
 	tokenHandler *handlers.TokenHandler,
 	proxyHandler *handlers.ProxyHandler,
 	authHandler *handlers.AuthHandler,
+	accountHandler *handlers.AccountHandler,
 	tokenService interfaces.TokenService,
 ) {
 	// Health check (public)
@@ -74,6 +75,16 @@ func StartAPIServer(
 			tokens.GET("/:id", tokenHandler.GetToken)
 			tokens.PUT("/:id", tokenHandler.UpdateToken)
 			tokens.DELETE("/:id", tokenHandler.DeleteToken)
+		}
+
+		// Account routes (protected with API key)
+		accounts := api.Group("/accounts")
+		accounts.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
+		{
+			accounts.GET("", accountHandler.ListAccounts)
+			accounts.GET("/:id", accountHandler.GetAccount)
+			accounts.PUT("/:id", accountHandler.UpdateAccount)
+			accounts.DELETE("/:id", accountHandler.DeleteAccount)
 		}
 	}
 
