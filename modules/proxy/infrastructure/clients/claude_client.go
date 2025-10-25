@@ -26,6 +26,7 @@ func NewClaudeAPIClient(baseURL string) *ClaudeAPIClient {
 	// Set default headers
 	client.SetHeader("Content-Type", "application/json")
 	client.SetHeader("anthropic-version", "2023-06-01")
+	client.SetHeader("anthropic-beta", "oauth-2025-04-20") // Required for OAuth authentication
 
 	return &ClaudeAPIClient{
 		baseURL: baseURL,
