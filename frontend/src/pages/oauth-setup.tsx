@@ -119,7 +119,7 @@ export default function OAuthSetup() {
               id="orgId"
               placeholder="org_..."
               value={orgId}
-              onChange={(e) => setOrgId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrgId(e.target.value)}
               disabled={!!oauthData}
             />
             <p className="text-sm text-muted-foreground">
@@ -186,7 +186,7 @@ export default function OAuthSetup() {
                   id="authCode"
                   placeholder="Enter the code from the callback URL"
                   value={authCode}
-                  onChange={(e) => setAuthCode(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuthCode(e.target.value)}
                 />
                 <p className="text-sm text-muted-foreground">
                   After authorizing, copy the <code className="px-1 bg-muted">code</code> parameter from the redirect URL
