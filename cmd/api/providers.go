@@ -236,6 +236,7 @@ func NewOAuthService(cfg *config.Config) *oauth.Service {
 		cfg.OAuth.AuthorizeURL,
 		cfg.OAuth.TokenURL,
 		cfg.OAuth.RedirectURI,
+		cfg.OAuth.Scope,
 	)
 }
 

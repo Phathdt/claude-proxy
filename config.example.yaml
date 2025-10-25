@@ -16,16 +16,18 @@ auth:
   api_key: 'your-secret-api-key-here'
 
 # OAuth 2.0 configuration for Claude authentication
-# Note: authorize_url uses a template with {organization_uuid} placeholder
+# Note: organization_uuid is passed as a query parameter, not in the path
 # Environment variables:
-#   OAUTH_AUTHORIZE_URL - OAuth authorization endpoint URL template
+#   OAUTH_AUTHORIZE_URL - OAuth authorization endpoint URL
 #   OAUTH_TOKEN_URL - OAuth token exchange endpoint URL
 #   OAUTH_REDIRECT_URI - OAuth redirect URI for authorization flow
+#   OAUTH_SCOPE - OAuth scopes (space-separated)
 oauth:
   client_id: 'your-claude-oauth-client-id'
-  authorize_url: 'https://claude.ai/v1/oauth/{organization_uuid}/authorize'
+  authorize_url: 'https://claude.ai/oauth/authorize'
   token_url: 'https://console.anthropic.com/v1/oauth/token'
   redirect_uri: 'https://console.anthropic.com/oauth/code/callback'
+  scope: 'user:profile user:inference'
 
 # Claude API configuration
 claude:

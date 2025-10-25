@@ -48,6 +48,7 @@ type OAuthConfig struct {
 	AuthorizeURL string `yaml:"authorize_url" mapstructure:"authorize_url"`
 	TokenURL     string `yaml:"token_url"     mapstructure:"token_url"`
 	RedirectURI  string `yaml:"redirect_uri"  mapstructure:"redirect_uri"`
+	Scope        string `yaml:"scope"         mapstructure:"scope"`
 }
 
 // ClaudeConfig holds Claude API configuration
@@ -111,6 +112,9 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 	if config.OAuth.RedirectURI == "" {
 		config.OAuth.RedirectURI = fmt.Sprintf("http://%s:%d/oauth/callback", config.Server.Host, config.Server.Port)
+	}
+	if config.OAuth.Scope == "" {
+		config.OAuth.Scope = "user:profile user:inference"
 	}
 
 	// Set default Claude config if not specified

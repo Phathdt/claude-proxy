@@ -20,6 +20,7 @@ type Service struct {
 	authorizeURL string
 	tokenURL     string
 	redirectURI  string
+	scope        string
 	httpClient   *http.Client
 }
 
@@ -39,12 +40,13 @@ type PKCEChallenge struct {
 }
 
 // NewService creates a new OAuth service
-func NewService(clientID, authorizeURL, tokenURL, redirectURI string) *Service {
+func NewService(clientID, authorizeURL, tokenURL, redirectURI, scope string) *Service {
 	return &Service{
 		clientID:     clientID,
 		authorizeURL: authorizeURL,
 		tokenURL:     tokenURL,
 		redirectURI:  redirectURI,
+		scope:        scope,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -77,23 +79,29 @@ func (s *Service) GeneratePKCEChallenge() (*PKCEChallenge, error) {
 }
 
 // BuildAuthorizationURL builds the OAuth authorization URL
-// If organizationID is provided, it replaces {organization_uuid} placeholder in the authorize URL
+// If organizationID is provided, it's added as organization_uuid query parameter
 func (s *Service) BuildAuthorizationURL(challenge *PKCEChallenge, organizationID string) string {
 	params := url.Values{}
-	params.Set("client_id", s.clientID)
 	params.Set("response_type", "code")
+	params.Set("client_id", s.clientID)
+
+	// Add organization_uuid as query parameter if provided
+	if organizationID != "" {
+		params.Set("organization_uuid", organizationID)
+	}
+
 	params.Set("redirect_uri", s.redirectURI)
+
+	// Add scope if configured
+	if s.scope != "" {
+		params.Set("scope", s.scope)
+	}
+
 	params.Set("state", challenge.State)
 	params.Set("code_challenge", challenge.CodeChallenge)
 	params.Set("code_challenge_method", "S256")
 
-	// Replace {organization_uuid} placeholder if present
-	authorizeURL := s.authorizeURL
-	if organizationID != "" {
-		authorizeURL = strings.ReplaceAll(authorizeURL, "{organization_uuid}", organizationID)
-	}
-
-	return fmt.Sprintf("%s?%s", authorizeURL, params.Encode())
+	return fmt.Sprintf("%s?%s", s.authorizeURL, params.Encode())
 }
 
 // ExchangeCodeForToken exchanges authorization code for access and refresh tokens
