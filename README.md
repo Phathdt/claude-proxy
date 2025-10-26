@@ -55,48 +55,49 @@ go build -o bin/claude-proxy
 
 Server runs on `http://localhost:4000`
 
-### 4. Add Claude Accounts via OAuth
+### 4. Add Claude Accounts via Admin Dashboard
 
-**Option A: Via Admin Dashboard (Recommended)**
-
-1. Open `http://localhost:4000` in browser
-2. Login (username/password can be anything initially)
-3. Click "Add Account" and follow OAuth flow
-4. Authorize with Claude
-5. Account tokens are automatically saved
-
-**Option B: Via API (Manual Flow)**
+**Step 1: Access Admin Dashboard**
 
 ```bash
-# Step 1: Get OAuth authorization URL
-curl http://localhost:4000/oauth/authorize
-
-# Response includes:
-# - authorization_url: Visit this in browser to authorize
-# - state: Save this
-# - code_verifier: Save this
-
-# Step 2: Visit authorization_url and authorize
-# (Browser redirects to http://localhost:4000/oauth/callback?code=AUTH_CODE&state=...)
-
-# Step 3: Exchange code for tokens
-curl -X POST http://localhost:4000/oauth/exchange \
-  -H "Content-Type: application/json" \
-  -d '{
-    "code": "AUTH_CODE_FROM_CALLBACK",
-    "state": "STATE_FROM_STEP_1",
-    "code_verifier": "CODE_VERIFIER_FROM_STEP_1"
-  }'
+# Open admin UI in browser
+http://localhost:4000
 ```
+
+**Step 2: Authenticate with Admin API Key**
+
+Enter your configured admin API key (from `config.yaml` `auth.api_key` field):
+```
+API Key: your-configured-api-key
+```
+
+**Step 3: Add New Account**
+
+1. Click "Add Account" button
+2. Click "Authorize with Claude"
+3. Browser opens Claude OAuth authorization page
+4. Authorize and approve access
+5. Claude redirects back with account tokens
+6. Account is automatically saved and ready to use
 
 ✅ Account is now saved! Tokens auto-refresh every hour + on-demand (60s before expiry).
 
-### 5. Send Requests to Claude
+**Admin Dashboard Features:**
+- View all saved accounts
+- See token expiration status
+- Monitor account health (active/inactive)
+- View last refresh error (if any)
+- Manual account management
+- Add multiple accounts and switch between them
+
+### 5. Use the Proxy to Send Requests
+
+Once accounts are added via the admin dashboard, clients can proxy requests through Claude Proxy:
 
 ```bash
-# Using API key for authentication
+# Send request with your API key
 curl -X POST http://localhost:4000/api/proxy \
-  -H "X-API-Key: your-configured-api-key" \
+  -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -108,21 +109,37 @@ curl -X POST http://localhost:4000/api/proxy \
   }'
 ```
 
-The request is automatically routed to an available Claude account with a valid token.
+**How it works:**
+1. Request arrives with your API key (not OAuth - simpler for clients)
+2. Proxy automatically selects a healthy account via load balancing
+3. Checks if account token needs refresh (60-second buffer)
+4. Refreshes token if needed (transparent to client)
+5. Forwards request to Claude API
+6. Returns response to client
 
 ## API Endpoints
 
-### OAuth Authentication
+### Admin Authentication
+
+All admin endpoints require the `X-API-Key` header with your configured admin API key:
+
+```bash
+-H "X-API-Key: your-configured-api-key"
+```
+
+### OAuth Flow (Internal)
+
+Used by admin dashboard to add accounts:
 
 - **`GET /oauth/authorize`** - Generate OAuth authorization URL with PKCE
   - Returns: `{ authorization_url, state, code_verifier }`
-  - No auth required
+  - Requires: `X-API-Key` header
 
 - **`POST /oauth/exchange`** - Exchange authorization code for access token
   - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
   - Returns: Account info with tokens and expiry
   - Saves account to JSON persistence
-  - No auth required
+  - Requires: `X-API-Key` header
 
 - **`GET /oauth/callback`** - OAuth callback handler
   - Receives: `?code=AUTH_CODE&state=STATE`
@@ -131,18 +148,25 @@ The request is automatically routed to an available Claude account with a valid 
 
 - **`GET /api/accounts`** - List all saved accounts
   - Requires: `X-API-Key` header
-  - Returns: Array of accounts with status and expiry info
+  - Returns: Array of accounts with status, tokens, and expiry info
+  - Shows: account health, last refresh time, and any errors
 
-- **`POST /api/accounts`** - Create account from OAuth exchange
+- **`POST /api/accounts`** - Create new account from OAuth exchange
   - Requires: `X-API-Key` header
-  - Body: OAuth exchange payload
+  - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
+  - Returns: New account with tokens
+
+- **`DELETE /api/accounts/{id}`** - Remove account
+  - Requires: `X-API-Key` header
+  - Stops routing requests to this account
 
 ### Proxy Requests
 
-- **`GET /api/proxy/*`** - Proxy requests to Claude API
+- **`POST /api/proxy`** - Proxy requests to Claude API
   - Requires: `X-API-Key` header
-  - Automatically selects healthy account via load balancing
-  - Refreshes token if within 60 seconds of expiry
+  - Body: Claude API request (messages, model, streaming options, etc.)
+  - Auto-selects healthy account via load balancing
+  - Auto-refreshes token if within 60 seconds of expiry
   - Returns: Claude API response (streaming or JSON)
 
 ### Health & Status
