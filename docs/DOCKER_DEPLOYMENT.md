@@ -95,17 +95,18 @@ Pipeline will:
 
 ### Required Secrets
 
-For CI/CD to work, set these in GitHub repository settings (Settings > Secrets and Variables > Actions):
+For CI/CD to work, set this in GitHub repository settings (Settings > Secrets and Variables > Actions):
 
 ```
-DOCKER_USERNAME: phathdt379
-DOCKER_PASSWORD: <your-docker-hub-token>
+DOCKER_TOKEN: <your-docker-hub-token>
 ```
 
 **To create Docker Hub token:**
 1. Go to https://hub.docker.com/settings/security
 2. Create new access token
-3. Add to GitHub secrets as `DOCKER_PASSWORD`
+3. Add to GitHub secrets as `DOCKER_TOKEN`
+
+Note: Username is hardcoded as `phathdt379` in the workflow
 
 ## Docker Image Details
 
