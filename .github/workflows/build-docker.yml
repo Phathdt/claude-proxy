@@ -51,7 +51,6 @@ jobs:
           name: Claude Proxy v${{ github.event.inputs.version }}
           draft: false
           prerelease: false
-          generateReleaseNotes: true
           body: |
             # Claude Proxy v${{ github.event.inputs.version }}
 
