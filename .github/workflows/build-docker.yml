@@ -27,27 +27,10 @@ jobs:
           username: phathdt379
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up Node.js (for frontend build)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: "1.24"
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          pnpm install
-          pnpm build
-          cd ..
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
