@@ -19,17 +19,19 @@ export function LoginPage() {
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
-      password: '',
+      apiKey: '',
     },
   })
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      const { token, user } = await authApi.login(data)
-      // Store both the token and user info
-      localStorage.setItem('auth_token', token)
-      localStorage.setItem('user', JSON.stringify(user))
+      const result = await authApi.validate(data.apiKey)
+      if (!result.valid) {
+        form.setError('root', { message: 'Invalid API Key' })
+        return
+      }
+      // Store the API key as auth token
+      localStorage.setItem('auth_token', data.apiKey)
       navigate('/admin/dashboard')
     } catch (err) {
       const errorMessage = getErrorMessage(err)
@@ -58,35 +60,16 @@ export function LoginPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="email"
+                name="apiKey"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <input
-                        type="email"
-                        placeholder="Enter your email"
-                        className="border-input bg-background text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>API Key</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Key className="text-muted-foreground absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
                         <input
                           type="password"
-                          placeholder="Enter your password"
+                          placeholder="Enter your API key"
                           className="border-input bg-background text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring w-full rounded-md border py-2 pr-3 pl-10 focus:ring-2 focus:outline-none"
                           {...field}
                         />
@@ -102,17 +85,13 @@ export function LoginPage() {
                 disabled={form.formState.isSubmitting}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-4 py-2 font-medium transition-colors disabled:opacity-50"
               >
-                {form.formState.isSubmitting ? 'Signing in...' : 'Sign in'}
+                {form.formState.isSubmitting ? 'Validating...' : 'Sign in'}
               </button>
             </form>
           </Form>
 
           <div className="text-muted-foreground mt-4 text-center text-xs">
-            <p>
-              Configure your credentials in{' '}
-              <code className="bg-muted rounded px-1">config.yaml</code>
-            </p>
-            <p className="mt-1">or use your admin account</p>
+            <p>Enter your API key to access the admin panel</p>
           </div>
         </div>
       </div>

@@ -104,34 +104,13 @@ export const tokenApi = {
 }
 
 // Auth API (real API calls to backend)
-export interface LoginResponse {
-  success: boolean
-  token: string
-  user: {
-    id: string
-    email: string
-    name: string
-    role: string
-  }
+export interface ValidateResponse {
+  valid: boolean
 }
 
 export const authApi = {
-  // Login with email and password
-  login: async (credentials: { email: string; password: string }): Promise<LoginResponse> => {
-    const response = await apiClient.post('/api/auth/login', {
-      email: credentials.email,
-      password: credentials.password,
-    })
-    return response.data
-  },
-
   // Validate API key
-  validate: async (
-    apiKey: string
-  ): Promise<{
-    valid: boolean
-    user?: { id: string; email: string; name: string; role: string }
-  }> => {
+  validate: async (apiKey: string): Promise<ValidateResponse> => {
     const response = await apiClient.post('/api/auth/validate', { api_key: apiKey })
     return response.data
   },
