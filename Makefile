@@ -30,8 +30,8 @@ docker-down:
 docker-build:
 	@echo "🔨 Building frontend..."
 	cd frontend && pnpm install && pnpm build
-	@echo "🐳 Building Docker image..."
-	docker build -t phathdt379/claude-proxy:latest .
+	@echo "🐳 Building Docker image with buildx..."
+	docker buildx build --load -t phathdt379/claude-proxy:latest .
 	@echo "✅ Docker build complete: phathdt379/claude-proxy:latest"
 
 deps:
