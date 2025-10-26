@@ -126,18 +126,14 @@ func (c *ClaudeAPIClient) ProxyRequest(
 	accessToken string,
 	body []byte,
 ) (*http.Response, error) {
-	// Build headers for Claude API
-	headers := map[string]string{
-		"Authorization":     "Bearer " + accessToken,
-		"Content-Type":      "application/json",
-		"Anthropic-Version": "2023-06-01",
-		"Anthropic-Beta":    "oauth-2025-04-20",
-	}
-
 	// Create req request with context
+	// Common headers (Content-Type, Anthropic-Version, Anthropic-Beta) are already set
+	// Only add the Authorization header which varies per request
 	request := c.client.R().
 		SetContext(ctx).
-		SetHeaders(headers)
+		SetHeaders(map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		})
 
 	// Set body if present
 	if len(body) > 0 {
