@@ -95,9 +95,9 @@ API Key: your-configured-api-key
 Once accounts are added via the admin dashboard, clients can send requests through Claude Proxy using standard Claude API format:
 
 ```bash
-# Send request with your API key (just like Claude API)
+# Send request with Bearer token
 curl -X POST http://localhost:4000/v1/messages \
-  -H "X-API-Key: your-api-key" \
+  -H "Authorization: Bearer your-token-here" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "claude-opus-4-20250514",
@@ -110,14 +110,15 @@ curl -X POST http://localhost:4000/v1/messages \
 ```
 
 **How it works:**
-1. Request arrives at `/v1/messages` with your API key
-2. Proxy automatically selects a healthy account via load balancing
-3. Checks if account token needs refresh (60-second buffer)
-4. Refreshes token if needed (transparent to client)
-5. Forwards request to Claude API with selected account's token
-6. Returns response to client (streaming or JSON)
+1. Request arrives at `/v1/messages` with Bearer token
+2. Proxy validates the token
+3. Proxy automatically selects a healthy account via load balancing
+4. Checks if account token needs refresh (60-second buffer)
+5. Refreshes token if needed (transparent to client)
+6. Forwards request to Claude API with selected account's token
+7. Returns response to client (streaming or JSON)
 
-**Note:** The endpoint `/v1/messages` is compatible with the standard Claude API format, so you can drop in Claude Proxy as a replacement for `https://api.claude.ai`.
+**Note:** The endpoint `/v1/messages` is compatible with the standard Claude API format, so you can drop in Claude Proxy as a replacement for `https://api.claude.ai`. Use your stored token with `Authorization: Bearer` header.
 
 ## API Endpoints
 
@@ -129,22 +130,19 @@ All admin endpoints require the `X-API-Key` header with your configured admin AP
 -H "X-API-Key: your-configured-api-key"
 ```
 
-### OAuth Flow (Internal)
+### OAuth Flow (Admin Only)
 
 Used by admin dashboard to add accounts:
 
 - **`GET /oauth/authorize`** - Generate OAuth authorization URL with PKCE
   - Returns: `{ authorization_url, state, code_verifier }`
-  - Requires: `X-API-Key` header
+  - Requires: `X-API-Key` header (admin API key)
 
 - **`POST /oauth/exchange`** - Exchange authorization code for access token
   - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
   - Returns: Account info with tokens and expiry
   - Saves account to JSON persistence
-  - Requires: `X-API-Key` header
-
-- **`GET /oauth/callback`** - OAuth callback handler
-  - Receives: `?code=AUTH_CODE&state=STATE`
+  - Requires: `X-API-Key` header (admin API key)
 
 ### Account Management
 
@@ -162,10 +160,10 @@ Used by admin dashboard to add accounts:
   - Requires: `X-API-Key` header
   - Stops routing requests to this account
 
-### Proxy Requests
+### Claude API Proxy
 
-- **`POST /v1/messages`** - Proxy requests to Claude API (standard Claude API format)
-  - Requires: `X-API-Key` header (use your configured API key, not OAuth token)
+- **`POST /v1/messages`** (and all `/v1/*` endpoints) - Proxy Claude API requests
+  - Requires: `Authorization: Bearer <token>` header
   - Body: Standard Claude API request format
     - `model`: Model identifier (e.g., "claude-opus-4-20250514")
     - `messages`: Array of messages with role and content
