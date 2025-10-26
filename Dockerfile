@@ -9,7 +9,7 @@ COPY frontend ./frontend
 # Install and build frontend
 RUN cd frontend && \
     npm install -g pnpm && \
-    pnpm install && \
+    CI=true pnpm install && \
     pnpm build
 
 # Go build stage
