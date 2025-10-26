@@ -64,6 +64,59 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            # If no previous tag, get all commits
+            CHANGELOG=$(git log --oneline --pretty=format:"- %s" | head -20)
+          else
+            # Get commits since last tag
+            CHANGELOG=$(git log ${LAST_TAG}..HEAD --oneline --pretty=format:"- %s")
+          fi
+
+          # Create changelog file
+          {
+            echo "Release v${{ github.event.inputs.version }}"
+            echo ""
+            echo "## 🎉 Changes"
+            echo "$CHANGELOG"
+            echo ""
+            echo "## 🐳 Docker Image"
+            echo "The Docker image for this release is available at:"
+            echo "- \`phathdt379/claude-proxy:v${{ github.event.inputs.version }}\`"
+            echo "- \`phathdt379/claude-proxy:latest\`"
+            echo ""
+            echo "**Multi-platform support:** Linux (amd64, arm64) including macOS M1/M2/M3"
+            echo ""
+            echo "## 📦 Pull & Run"
+            echo "\`\`\`bash"
+            echo "docker pull phathdt379/claude-proxy:v${{ github.event.inputs.version }}"
+            echo "docker run -d \\"
+            echo "  --name claude-proxy \\"
+            echo "  -p 4000:4000 \\"
+            echo "  -v ~/.claude-proxy/data:/app/data \\"
+            echo "  -v \$(pwd)/config.yaml:/app/config.yaml \\"
+            echo "  phathdt379/claude-proxy:v${{ github.event.inputs.version }}"
+            echo "\`\`\`"
+            echo ""
+            echo "Built automatically via GitHub Actions."
+          } > /tmp/changelog.txt
+
+          # Output changelog for debugging
+          echo "## Generated Release Notes:"
+          cat /tmp/changelog.txt
+
+          # Set as output for next step (handle multiline)
+          {
+            echo "body<<EOF"
+            cat /tmp/changelog.txt
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Create and push git tag
         run: |
           git config user.name "github-actions[bot]"
@@ -76,18 +129,7 @@ jobs:
         with:
           tag_name: v${{ github.event.inputs.version }}
           name: v${{ github.event.inputs.version }}
-          body: |
-            Release v${{ github.event.inputs.version }}
-
-            ## Changes
-            - Multi-platform Docker image build (linux/amd64, linux/arm64)
-
-            ## Docker Image
-            The Docker image for this release is available at:
-            - `phathdt379/claude-proxy:v${{ github.event.inputs.version }}`
-            - `phathdt379/claude-proxy:latest`
-
-            Built automatically via GitHub Actions.
+          body: ${{ steps.changelog.outputs.body }}
           draft: false
           prerelease: false
           make_latest: true
