@@ -8,7 +8,7 @@ ARG BUILDPLATFORM
 WORKDIR /workspace
 
 # Install build dependencies
-RUN apk add --no-cache git
+RUN apk add --no-cache git upx
 
 # Copy go mod files first for better layer caching
 COPY go.mod go.sum ./
@@ -32,6 +32,9 @@ RUN echo "Building for ${TARGETPLATFORM}" && \
   -tags netgo,osusergo \
   -trimpath \
   -o claude-proxy .
+
+# Compress binary with UPX
+RUN upx --best --lzma claude-proxy
 
 # Runtime stage
 FROM alpine:3.22
