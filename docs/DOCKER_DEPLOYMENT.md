@@ -116,7 +116,7 @@ phathdt379/claude-proxy:0.1.0
 ├─ Frontend: Built with Node 22
 ├─ Backend: Built with Go 1.24
 ├─ Size: ~50MB (multi-stage optimized)
-└─ Runtime: Alpine 3.18
+└─ Runtime: Alpine 3.22
 ```
 
 ### Security Features
