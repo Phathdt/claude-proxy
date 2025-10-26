@@ -1,4 +1,13 @@
-import { Activity, Key, TrendingUp, Users } from 'lucide-react'
+import { Activity, Key, TrendingUp, Users, Loader2 } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useTokens } from '@/hooks/use-tokens'
 
 export function DashboardPage() {
@@ -54,62 +63,75 @@ export function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <div key={stat.title} className="border-border bg-card rounded-lg border p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm font-medium">{stat.title}</p>
-                <p className="text-card-foreground mt-2 text-3xl font-bold">
-                  {isLoading ? '-' : stat.value}
-                </p>
+          <Card key={stat.title}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm font-medium">{stat.title}</p>
+                  <p className="text-card-foreground mt-2 text-3xl font-bold">
+                    {isLoading ? '-' : stat.value}
+                  </p>
+                </div>
+                <div className={`rounded-lg ${stat.bgColor} p-3`}>
+                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                </div>
               </div>
-              <div className={`rounded-lg ${stat.bgColor} p-3`}>
-                <stat.icon className={`h-6 w-6 ${stat.color}`} />
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Recent Activity */}
-      <div className="border-border bg-card rounded-lg border p-6 shadow-sm">
-        <h2 className="text-card-foreground mb-4 text-xl font-semibold">Recent Tokens</h2>
-        <div className="space-y-4">
-          {isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading...</p>
-          ) : tokens && tokens.length > 0 ? (
-            tokens.slice(0, 5).map((token) => (
-              <div
-                key={token.id}
-                className="border-border flex items-center justify-between rounded-md border p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`h-2 w-2 rounded-full ${
-                      token.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
-                    }`}
-                  />
-                  <div>
-                    <p className="text-foreground font-medium">{token.name}</p>
-                    <p className="text-muted-foreground text-sm">{token.usageCount} requests</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-foreground text-sm font-medium">
-                    {token.status === 'active' ? 'Active' : 'Inactive'}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {token.lastUsedAt
-                      ? new Date(token.lastUsedAt).toLocaleDateString()
-                      : 'Never used'}
-                  </p>
-                </div>
+      {/* Recent Tokens */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <h2 className="text-card-foreground text-xl font-semibold">Recent Tokens</h2>
+            {isLoading ? (
+              <div className="py-8 text-center">
+                <Loader2 className="text-primary mx-auto h-8 w-8 animate-spin" />
+                <p className="text-muted-foreground mt-2">Loading tokens...</p>
               </div>
-            ))
-          ) : (
-            <p className="text-muted-foreground text-sm">No tokens found</p>
-          )}
-        </div>
-      </div>
+            ) : tokens && tokens.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Usage</TableHead>
+                    <TableHead>Last Used</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tokens.slice(0, 5).map((token) => (
+                    <TableRow key={token.id}>
+                      <TableCell className="font-medium">{token.name}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            token.status === 'active'
+                              ? 'bg-green-500/10 text-green-500'
+                              : 'bg-gray-500/10 text-gray-500'
+                          }`}
+                        >
+                          {token.status}
+                        </span>
+                      </TableCell>
+                      <TableCell>{token.usageCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {token.lastUsedAt
+                          ? new Date(token.lastUsedAt * 1000).toLocaleDateString()
+                          : 'Never used'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-muted-foreground py-8 text-center text-sm">No tokens found</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

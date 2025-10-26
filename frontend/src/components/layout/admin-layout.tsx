@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { name: 'App Tokens (OAuth)', href: '/admin/app-tokens', icon: Shield },
+  { name: 'Accounts', href: '/admin/accounts', icon: Shield },
   { name: 'Tokens', href: '/admin/tokens', icon: Key },
 ]
 
@@ -54,11 +54,13 @@ export function AdminLayout() {
           {/* User section */}
           <div className="border-sidebar-border border-t p-4">
             {user && (
-              <div className="mb-3 rounded-lg bg-sidebar-accent/30 p-3">
+              <div className="bg-sidebar-accent/30 mb-3 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-sidebar-foreground" />
+                  <User className="text-sidebar-foreground h-4 w-4" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sidebar-foreground truncate text-sm font-medium">{user.name}</p>
+                    <p className="text-sidebar-foreground truncate text-sm font-medium">
+                      {user.name}
+                    </p>
                     <p className="text-sidebar-foreground/70 truncate text-xs">{user.email}</p>
                   </div>
                 </div>

@@ -116,16 +116,22 @@ export interface LoginResponse {
 }
 
 export const authApi = {
-  // Login with API key
-  login: async (apiKey: string): Promise<LoginResponse> => {
-    const response = await apiClient.post('/api/auth/login', { api_key: apiKey })
+  // Login with email and password
+  login: async (credentials: { email: string; password: string }): Promise<LoginResponse> => {
+    const response = await apiClient.post('/api/auth/login', {
+      email: credentials.email,
+      password: credentials.password,
+    })
     return response.data
   },
 
   // Validate API key
   validate: async (
     apiKey: string
-  ): Promise<{ valid: boolean; user?: { id: string; email: string; name: string; role: string } }> => {
+  ): Promise<{
+    valid: boolean
+    user?: { id: string; email: string; name: string; role: string }
+  }> => {
     const response = await apiClient.post('/api/auth/validate', { api_key: apiKey })
     return response.data
   },
@@ -187,8 +193,8 @@ export const oauthApi = {
   },
 }
 
-// App Accounts API (multi-account OAuth management)
-export interface AppAccount {
+// Accounts API (multi-account OAuth management)
+export interface Account {
   id: string
   name: string
   organizationUuid: string
@@ -200,18 +206,18 @@ export interface AppAccount {
   updatedAt: number
 }
 
-export interface CreateAppAccountRequest {
+export interface CreateAccountRequest {
   name: string
   orgId?: string
 }
 
-export interface CreateAppAccountResponse {
+export interface CreateAccountResponse {
   authorizationUrl: string
   state: string
   codeVerifier: string
 }
 
-export interface CompleteAppAccountRequest {
+export interface CompleteAccountRequest {
   name: string
   code: string
   state: string
@@ -219,32 +225,32 @@ export interface CompleteAppAccountRequest {
   orgId?: string
 }
 
-export interface CompleteAppAccountResponse {
+export interface CompleteAccountResponse {
   success: boolean
   message: string
-  account: AppAccount
+  account: Account
 }
 
-export interface UpdateAppAccountRequest {
+export interface UpdateAccountRequest {
   name?: string
   status?: string
 }
 
-export const appAccountsApi = {
-  // List all app accounts
-  list: async (): Promise<AppAccount[]> => {
+export const accountsApi = {
+  // List all accounts
+  list: async (): Promise<Account[]> => {
     const response = await apiClient.get('/api/accounts')
     return response.data.accounts || []
   },
 
-  // Get single app account
-  get: async (id: string): Promise<AppAccount> => {
+  // Get single account
+  get: async (id: string): Promise<Account> => {
     const response = await apiClient.get(`/api/accounts/${id}`)
     return response.data.account
   },
 
-  // Create app account (start OAuth flow)
-  create: async (data: CreateAppAccountRequest): Promise<CreateAppAccountResponse> => {
+  // Create account (start OAuth flow)
+  create: async (data: CreateAccountRequest): Promise<CreateAccountResponse> => {
     const params = new URLSearchParams()
     if (data.orgId) {
       params.append('org_id', data.orgId)
@@ -254,18 +260,18 @@ export const appAccountsApi = {
   },
 
   // Complete OAuth flow
-  complete: async (data: CompleteAppAccountRequest): Promise<CompleteAppAccountResponse> => {
+  complete: async (data: CompleteAccountRequest): Promise<CompleteAccountResponse> => {
     const response = await apiClient.post('/oauth/exchange', data)
     return response.data
   },
 
-  // Update app account
-  update: async (id: string, data: UpdateAppAccountRequest): Promise<AppAccount> => {
+  // Update account
+  update: async (id: string, data: UpdateAccountRequest): Promise<Account> => {
     const response = await apiClient.put(`/api/accounts/${id}`, data)
     return response.data.account
   },
 
-  // Delete app account
+  // Delete account
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/accounts/${id}`)
   },

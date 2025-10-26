@@ -60,10 +60,13 @@ func (r *JSONTokenRepository) Create(ctx context.Context, token *entities.Token)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check if token with same key already exists
+	// Check if token with same key or name already exists
 	for _, t := range r.tokens {
 		if t.Key == token.Key {
 			return fmt.Errorf("token with key already exists")
+		}
+		if strings.EqualFold(t.Name, token.Name) {
+			return fmt.Errorf("token with name already exists")
 		}
 	}
 
@@ -124,10 +127,15 @@ func (r *JSONTokenRepository) Update(ctx context.Context, token *entities.Token)
 		return fmt.Errorf("token not found")
 	}
 
-	// Check if key changed and conflicts with another token
+	// Check if key or name changed and conflicts with another token
 	for id, t := range r.tokens {
-		if id != token.ID && t.Key == token.Key {
-			return fmt.Errorf("token with key already exists")
+		if id != token.ID {
+			if t.Key == token.Key {
+				return fmt.Errorf("token with key already exists")
+			}
+			if strings.EqualFold(t.Name, token.Name) {
+				return fmt.Errorf("token with name already exists")
+			}
 		}
 	}
 

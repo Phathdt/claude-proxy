@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,6 +59,16 @@ func (r *JSONAccountRepository) Create(ctx context.Context, account *entities.Ac
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Check if account with same name or organization UUID already exists
+	for _, a := range r.accounts {
+		if strings.EqualFold(a.Name, account.Name) {
+			return fmt.Errorf("account with name already exists")
+		}
+		if account.OrganizationUUID != "" && a.OrganizationUUID == account.OrganizationUUID {
+			return fmt.Errorf("account with organization UUID already exists")
+		}
+	}
+
 	// Generate ID if not set
 	if account.ID == "" {
 		account.ID = generateAccountID()
@@ -103,6 +114,18 @@ func (r *JSONAccountRepository) Update(ctx context.Context, account *entities.Ac
 
 	if _, exists := r.accounts[account.ID]; !exists {
 		return fmt.Errorf("account not found: %s", account.ID)
+	}
+
+	// Check if name or organization UUID changed and conflicts with another account
+	for id, a := range r.accounts {
+		if id != account.ID {
+			if strings.EqualFold(a.Name, account.Name) {
+				return fmt.Errorf("account with name already exists")
+			}
+			if account.OrganizationUUID != "" && a.OrganizationUUID == account.OrganizationUUID {
+				return fmt.Errorf("account with organization UUID already exists")
+			}
+		}
 	}
 
 	r.accounts[account.ID] = account

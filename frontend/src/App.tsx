@@ -4,7 +4,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { LoginPage } from './pages/login'
 import { DashboardPage } from './pages/dashboard'
 import { TokensPage } from './pages/tokens'
-import { AppTokensPage } from './pages/app-tokens'
+import { AccountsPage } from './pages/accounts'
 import { AdminLayout } from './components/layout/admin-layout'
 import { useAuth } from './hooks/useAuth'
 import { Loader2 } from 'lucide-react'
@@ -26,8 +26,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-2 text-sm text-muted-foreground">Validating authentication...</p>
+          <Loader2 className="text-primary mx-auto h-8 w-8 animate-spin" />
+          <p className="text-muted-foreground mt-2 text-sm">Validating authentication...</p>
         </div>
       </div>
     )
@@ -58,7 +58,7 @@ function App() {
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="tokens" element={<TokensPage />} />
-            <Route path="app-tokens" element={<AppTokensPage />} />
+            <Route path="accounts" element={<AccountsPage />} />
           </Route>
           <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>
