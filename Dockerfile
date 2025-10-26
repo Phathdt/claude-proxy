@@ -20,7 +20,7 @@ WORKDIR /workspace
 # Install build dependencies
 RUN apk add --no-cache git
 
-# Copy go mod files
+# Copy go mod files first for better layer caching
 COPY go.mod go.sum ./
 
 # Download dependencies
@@ -32,9 +32,11 @@ COPY . .
 # Copy built frontend from frontend-builder
 COPY --from=frontend-builder /workspace/frontend/dist ./frontend/dist
 
-# Build binary with optimization
+# Build binary with maximum optimization
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-  -ldflags="-s -w" \
+  -ldflags="-s -w -extldflags=-static" \
+  -tags netgo,osusergo \
+  -trimpath \
   -o claude-proxy .
 
 # Runtime stage
