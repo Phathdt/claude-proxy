@@ -341,12 +341,15 @@ docker run -d \
 ### Build Optimization
 
 Multi-stage build reduces image size by:
-- Building frontend separately
+- Building frontend separately (Node 22)
 - Using Alpine for runtime (~5MB base)
 - Embedding frontend in Go binary
-- Stripping symbols from binary
+- Stripping symbols from binary (`-ldflags="-s -w"`)
+- Static binary compilation (`-extldflags=-static`)
+- Go netgo + osusergo tags for pure Go networking
+- Path trimming for reproducible builds (`-trimpath`)
 
-Final image size: ~50MB (including Go runtime)
+Final image size: ~50MB (including Go runtime and embedded frontend)
 
 ## Best Practices
 
