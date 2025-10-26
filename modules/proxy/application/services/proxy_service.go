@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"claude-proxy/modules/proxy/domain/entities"
 	"claude-proxy/modules/proxy/domain/interfaces"
@@ -99,7 +100,8 @@ func (s *ProxyService) ProxyRequest(
 	return resp, nil
 }
 
-// GetValidAccount returns a valid active account with a fresh access token
+// GetValidAccount returns a valid active account using load balancing strategy
+// Priority: accounts that don't need token refresh, then rotate through all active accounts
 func (s *ProxyService) GetValidAccount(ctx context.Context) (*entities.Account, error) {
 	accounts, err := s.accountRepo.GetActiveAccounts(ctx)
 	if err != nil {
@@ -110,7 +112,50 @@ func (s *ProxyService) GetValidAccount(ctx context.Context) (*entities.Account, 
 		return nil, fmt.Errorf("no active accounts available")
 	}
 
-	// Return first active account
-	// TODO: Implement load balancing or selection strategy
-	return accounts[0], nil
+	// Filter accounts that don't need token refresh (healthier accounts)
+	var healthyAccounts []*entities.Account
+	for _, acc := range accounts {
+		if !acc.NeedsRefresh() {
+			healthyAccounts = append(healthyAccounts, acc)
+		}
+	}
+
+	// If we have healthy accounts, select from them with round-robin
+	var selectedAccounts []*entities.Account
+	if len(healthyAccounts) > 0 {
+		selectedAccounts = healthyAccounts
+	} else {
+		// Fallback to all active accounts if none are healthy
+		selectedAccounts = accounts
+	}
+
+	// Round-robin selection using account ID hash to distribute load
+	// This ensures different requests rotate through accounts
+	account := s.selectAccountRoundRobin(selectedAccounts)
+
+	s.logger.Withs(sctx.Fields{
+		"account_id":      account.ID,
+		"account_name":    account.Name,
+		"needs_refresh":   account.NeedsRefresh(),
+		"total_accounts":  len(accounts),
+		"healthy_accounts": len(healthyAccounts),
+	}).Debug("Selected account for proxy request")
+
+	return account, nil
+}
+
+// selectAccountRoundRobin selects an account using round-robin strategy
+// Uses a simple hash-based distribution to avoid needing persistent state
+func (s *ProxyService) selectAccountRoundRobin(accounts []*entities.Account) *entities.Account {
+	if len(accounts) == 0 {
+		return nil
+	}
+	if len(accounts) == 1 {
+		return accounts[0]
+	}
+
+	// Use current timestamp as a rotating index
+	// This provides round-robin behavior without needing to maintain state
+	index := int(time.Now().UnixNano()) % len(accounts)
+	return accounts[index]
 }

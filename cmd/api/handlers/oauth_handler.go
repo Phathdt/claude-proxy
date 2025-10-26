@@ -176,6 +176,7 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 		AccessToken:      tokenResp.AccessToken,
 		RefreshToken:     tokenResp.RefreshToken,
 		ExpiresAt:        time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		RefreshAt:        now,
 		Status:           entities.AccountStatusActive,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -202,25 +203,3 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 	})
 }
 
-// HandleCallback handles the OAuth callback (returns code and state as JSON)
-// GET /oauth/callback?code=...&state=...
-func (h *OAuthHandler) HandleCallback(c *gin.Context) {
-	code := c.Query("code")
-	state := c.Query("state")
-
-	if code == "" || state == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
-				"type":    "oauth_error",
-				"message": "Missing code or state parameter",
-			},
-		})
-		return
-	}
-
-	// Return code and state for the frontend to handle
-	c.JSON(http.StatusOK, gin.H{
-		"code":  code,
-		"state": state,
-	})
-}

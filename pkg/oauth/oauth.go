@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	sctx "github.com/phathdt/service-context"
 )
 
 // Service handles OAuth 2.0 operations
@@ -22,6 +24,7 @@ type Service struct {
 	redirectURI  string
 	scope        string
 	httpClient   *http.Client
+	logger       sctx.Logger
 }
 
 // TokenResponse represents the OAuth token response
@@ -50,6 +53,7 @@ func NewService(clientID, authorizeURL, tokenURL, redirectURI, scope string) *Se
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		logger: sctx.GlobalLogger().GetLogger("oauth"),
 	}
 }
 
@@ -162,6 +166,11 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 
 // RefreshAccessToken uses refresh token to get a new access token
 func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+	s.logger.Withs(sctx.Fields{
+		"action": "refresh_token_start",
+		"url":    s.tokenURL,
+	}).Debug("Starting OAuth2 token refresh")
+
 	// Build JSON payload (matching Python implementation)
 	payload := map[string]string{
 		"grant_type":    "refresh_token",
@@ -171,31 +180,96 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
+		s.logger.Withs(sctx.Fields{
+			"action": "refresh_token_error",
+			"error":  err.Error(),
+			"stage":  "marshal_request",
+		}).Error("Failed to marshal refresh request")
 		return nil, fmt.Errorf("failed to marshal refresh request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(string(jsonData)))
 	if err != nil {
+		s.logger.Withs(sctx.Fields{
+			"action": "refresh_token_error",
+			"error":  err.Error(),
+			"stage":  "create_request",
+		}).Error("Failed to create refresh request")
 		return nil, fmt.Errorf("failed to create refresh request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
+	s.logger.Withs(sctx.Fields{
+		"action": "refresh_token_request_sent",
+		"url":    s.tokenURL,
+	}).Info("Sending token refresh request to OAuth server")
+
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
+		s.logger.Withs(sctx.Fields{
+			"action": "refresh_token_error",
+			"error":  err.Error(),
+			"stage":  "http_request",
+		}).Error("Failed to refresh token (HTTP request failed)")
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Withs(sctx.Fields{
+			"action":      "refresh_token_error",
+			"error":       err.Error(),
+			"stage":       "read_response",
+			"status_code": resp.StatusCode,
+		}).Error("Failed to read refresh response body")
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Log the entire response for debugging
+	s.logger.Withs(sctx.Fields{
+		"action":      "refresh_token_response",
+		"status_code": resp.StatusCode,
+	}).Debug("=== OAUTH2 TOKEN REFRESH RESPONSE START ===")
+
+	s.logger.Withs(sctx.Fields{
+		"headers": resp.Header,
+	}).Debug("Response Headers")
+
+	s.logger.Withs(sctx.Fields{
+		"body": string(body),
+	}).Debug("Response Body")
+
+	s.logger.Debug("=== OAUTH2 TOKEN REFRESH RESPONSE END ===")
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		s.logger.Withs(sctx.Fields{
+			"action":       "refresh_token_error",
+			"status_code":  resp.StatusCode,
+			"error_body":   string(body),
+			"stage":        "http_status",
+		}).Error("Token refresh failed with non-200 status")
 		return nil, fmt.Errorf("token refresh failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var tokenResp TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		s.logger.Withs(sctx.Fields{
+			"action":        "refresh_token_error",
+			"error":         err.Error(),
+			"stage":         "decode_response",
+			"response_body": string(body),
+		}).Error("Failed to decode refresh response")
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
+
+	s.logger.Withs(sctx.Fields{
+		"action":      "refresh_token_success",
+		"expires_in":  tokenResp.ExpiresIn,
+		"token_type":  tokenResp.TokenType,
+		"has_refresh": tokenResp.RefreshToken != "",
+	}).Info("Successfully refreshed OAuth2 tokens")
 
 	return &tokenResp, nil
 }

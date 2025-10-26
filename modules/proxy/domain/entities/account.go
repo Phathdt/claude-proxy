@@ -9,8 +9,10 @@ type Account struct {
 	OrganizationUUID string
 	AccessToken      string
 	RefreshToken     string
-	ExpiresAt        time.Time
+	ExpiresAt        time.Time // When access token expires
+	RefreshAt        time.Time // When tokens were last refreshed
 	Status           AccountStatus
+	LastRefreshError string // Last error message from token refresh attempt
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -43,6 +45,7 @@ func (a *Account) UpdateTokens(accessToken, refreshToken string, expiresIn int) 
 	a.AccessToken = accessToken
 	a.RefreshToken = refreshToken
 	a.ExpiresAt = time.Now().Add(time.Duration(expiresIn) * time.Second)
+	a.RefreshAt = time.Now()
 	a.UpdatedAt = time.Now()
 	a.Status = AccountStatusActive
 }
@@ -67,5 +70,11 @@ func (a *Account) Update(name string, status AccountStatus) {
 	if status != "" {
 		a.Status = status
 	}
+	a.UpdatedAt = time.Now()
+}
+
+// UpdateRefreshError updates the account with a refresh error
+func (a *Account) UpdateRefreshError(errMsg string) {
+	a.LastRefreshError = errMsg
 	a.UpdatedAt = time.Now()
 }

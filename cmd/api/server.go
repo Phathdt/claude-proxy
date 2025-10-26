@@ -56,7 +56,6 @@ func StartAPIServer(
 	{
 		oauth.GET("/authorize", oauthHandler.GetAuthorizeURL)
 		oauth.POST("/exchange", oauthHandler.ExchangeCode)
-		oauth.GET("/callback", oauthHandler.HandleCallback)
 	}
 
 	// API routes for admin

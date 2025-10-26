@@ -11,6 +11,7 @@ import (
 	"claude-proxy/modules/proxy/application/services"
 	"claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/modules/proxy/infrastructure/clients"
+	"claude-proxy/modules/proxy/infrastructure/jobs"
 	"claude-proxy/modules/proxy/infrastructure/repositories"
 	"claude-proxy/pkg/errors"
 	"claude-proxy/pkg/oauth"
@@ -45,6 +46,8 @@ var CloveProviders = fx.Options(
 		NewTokenService,
 		NewAccountService,
 		NewProxyService,
+		// Infrastructure - Jobs
+		NewTokenRefreshScheduler,
 		// Handlers
 		NewTokenHandler,
 		NewProxyHandler,
@@ -62,6 +65,9 @@ var APIProviders = fx.Options(
 	CloveProviders,
 	fx.Provide(
 		NewGinEngine,
+	),
+	fx.Invoke(
+		StartTokenRefreshScheduler,
 	),
 )
 
@@ -356,4 +362,30 @@ func NewOAuthHandler(
 	cfg *config.Config,
 ) *handlers.OAuthHandler {
 	return handlers.NewOAuthHandler(oauthService, accountRepo, accountSvc, cfg.Claude.BaseURL)
+}
+
+// NewTokenRefreshScheduler creates a new token refresh scheduler
+func NewTokenRefreshScheduler(
+	accountRepo interfaces.AccountRepository,
+	accountSvc interfaces.AccountService,
+	logger sctx.Logger,
+) *jobs.Scheduler {
+	return jobs.NewScheduler(accountRepo, accountSvc, logger)
+}
+
+// StartTokenRefreshScheduler starts the token refresh scheduler with lifecycle management
+func StartTokenRefreshScheduler(lc fx.Lifecycle, scheduler *jobs.Scheduler, logger sctx.Logger) error {
+	if err := scheduler.Start(); err != nil {
+		return err
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			logger.Info("Stopping token refresh scheduler")
+			scheduler.Stop()
+			return nil
+		},
+	})
+
+	return nil
 }

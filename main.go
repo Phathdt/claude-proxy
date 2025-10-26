@@ -19,12 +19,12 @@ func main() {
 	api.FrontendFS = frontendFS
 	app := &cli.App{
 		Name:  "claude-proxy",
-		Usage: "Wallet risk assessment API service",
+		Usage: "Claude API proxy service with in-memory job scheduler",
 		Commands: []*cli.Command{
 			{
 				Name:    "server",
 				Aliases: []string{"s"},
-				Usage:   "Start the wallet checker API server",
+				Usage:   "Start the API server",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "config",

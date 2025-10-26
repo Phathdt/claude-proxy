@@ -8,6 +8,7 @@ require (
 	github.com/imroc/req/v3 v3.55.0
 	github.com/joho/godotenv v1.5.1
 	github.com/phathdt/service-context v1.3.1
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/viper v1.21.0
 	github.com/urfave/cli/v2 v2.27.7
 	go.uber.org/fx v1.24.0
