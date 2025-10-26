@@ -1,222 +1,360 @@
-# Claude Proxy - Claude API Reverse Proxy
+# Claude Proxy - Multi-Account Claude API Reverse Proxy
 
-A lightweight, production-ready Claude reverse proxy with OAuth 2.0 authentication and automatic token refresh.
+A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, **multi-account support**, **automatic token refresh**, and **load balancing**.
 
 ## Features
 
-- **OAuth 2.0 with PKCE**: Secure authentication flow with automatic token refresh
-- **OpenAI-Compatible API**: Drop-in replacement with `/v1/messages` endpoint
-- **Streaming Support**: Real-time Server-Sent Events (SSE) streaming
-- **Automatic Token Refresh**: Tokens refreshed automatically before expiry
-- **Single Account Management**: JSON file-based persistence
-- **API Key Protection**: Secure your proxy with API key authentication
+- **OAuth 2.0 with PKCE**: Secure, scalable OAuth authentication with automatic token refresh
+- **Multi-Account Support**: Manage and load-balance across multiple Claude accounts
+- **Automatic Token Refresh**: Dual triggers - hourly cronjob + on-demand (60-second buffer)
+- **Load Balancing**: Stateless round-robin account selection with health filtering
+- **Claude API Proxy**: Full proxy support for Claude API requests with streaming
+- **Admin Dashboard**: React-based UI for OAuth setup and account management
+- **JSON Persistence**: File-based account storage (no database required)
+- **API Key Protection**: Secure all proxy requests with configurable API keys
 
 ## Quick Start
 
 ### 1. Prerequisites
 
-- Go 1.24+ 
-- Claude OAuth Client ID (contact Anthropic for API access)
+- **Go 1.21+**
+- **Claude OAuth Client ID** (obtain from Anthropic)
+- **Port 4000** available (configurable)
 
-### 2. Configuration
+### 2. Setup
 
 ```bash
-# Copy example configuration
+# Clone and setup
+git clone https://github.com/yourusername/claude-proxy.git
+cd claude-proxy
+
+# Copy configuration template
 cp config.example.yaml config.yaml
 
-# Edit config.yaml with your settings
-# Required:
+# Edit config.yaml
+# Required fields:
 #   - oauth.client_id: Your Claude OAuth client ID
-#   - auth.api_key: Your chosen API key for protecting the proxy
+#   - oauth.token_url: OAuth token endpoint
+#   - server.port: Server port (default: 4000)
 ```
 
-### 3. Run the Server
+### 3. Build & Run
 
 ```bash
-# Build and run
-go build -o claude-proxy
-./claude-proxy
-
-# Or run directly
+# Development (with hot reload for frontend)
+# Terminal 1: Backend
 go run . server
+
+# Terminal 2: Frontend
+cd frontend && pnpm dev
+
+# Production build
+go build -o bin/claude-proxy
+./bin/claude-proxy
 ```
 
-The server will start on `http://localhost:5201`
+Server runs on `http://localhost:4000`
 
-### 4. Setup OAuth Authentication (Manual Flow)
+### 4. Add Claude Accounts via OAuth
 
-**Step 1:** Generate OAuth authorization URL
+**Option A: Via Admin Dashboard (Recommended)**
+
+1. Open `http://localhost:4000` in browser
+2. Login (username/password can be anything initially)
+3. Click "Add Account" and follow OAuth flow
+4. Authorize with Claude
+5. Account tokens are automatically saved
+
+**Option B: Via API (Manual Flow)**
 
 ```bash
-curl http://localhost:5201/oauth/authorize
-```
+# Step 1: Get OAuth authorization URL
+curl http://localhost:4000/oauth/authorize
 
-Response:
-```json
-{
-  "authorization_url": "https://claude.ai/oauth/authorize?client_id=...&state=...&code_challenge=...",
-  "state": "abc123...",
-  "code_verifier": "xyz789..."
-}
-```
+# Response includes:
+# - authorization_url: Visit this in browser to authorize
+# - state: Save this
+# - code_verifier: Save this
 
-**Step 2:** Save the `state` and `code_verifier` (you'll need these later)
+# Step 2: Visit authorization_url and authorize
+# (Browser redirects to http://localhost:4000/oauth/callback?code=AUTH_CODE&state=...)
 
-**Step 3:** Visit the `authorization_url` in your browser and authorize
-
-**Step 4:** After authorization, Claude will redirect to callback URL with a `code` parameter:
-```
-http://localhost:5201/oauth/callback?code=AUTH_CODE&state=abc123
-```
-
-Copy the `code` from the URL
-
-**Step 5:** Exchange the code for tokens:
-
-```bash
-curl -X POST http://localhost:5201/oauth/exchange \
+# Step 3: Exchange code for tokens
+curl -X POST http://localhost:4000/oauth/exchange \
   -H "Content-Type: application/json" \
   -d '{
-    "code": "AUTH_CODE_FROM_STEP_4",
+    "code": "AUTH_CODE_FROM_CALLBACK",
     "state": "STATE_FROM_STEP_1",
     "code_verifier": "CODE_VERIFIER_FROM_STEP_1"
   }'
 ```
 
-Response:
-```json
-{
-  "success": true,
-  "message": "Account configured successfully",
-  "organization_uuid": "org_...",
-  "expires_at": 1234567890
-}
-```
+✅ Account is now saved! Tokens auto-refresh every hour + on-demand (60s before expiry).
 
-Your account is now configured! Tokens are automatically saved and refreshed.
-
-### 5. Send Messages
+### 5. Send Requests to Claude
 
 ```bash
-curl -X POST http://localhost:5201/v1/messages \
-  -H "X-API-Key: your-api-key" \
+# Using API key for authentication
+curl -X POST http://localhost:4000/api/proxy \
+  -H "X-API-Key: your-configured-api-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "claude-opus-4-20250514",
     "messages": [
-      {"role": "user", "content": "Hello!"}
+      {"role": "user", "content": "Hello Claude!"}
     ],
-    "max_tokens": 1024
+    "model": "claude-opus-4-20250514",
+    "max_tokens": 1024,
+    "stream": true
   }'
 ```
 
+The request is automatically routed to an available Claude account with a valid token.
+
 ## API Endpoints
 
-### OAuth Flow
+### OAuth Authentication
 
-- `GET /oauth/authorize` - Generate OAuth authorization URL (returns `state` and `code_verifier`)
-- `POST /oauth/exchange` - Exchange authorization code for tokens (manual flow)
-  - Request body: `{ "code": "...", "state": "...", "code_verifier": "...", "org_id": "..." }`
-  - Optional: `org_id` can be provided instead of auto-fetching
-- `GET /oauth/callback` - OAuth callback page (displays code for user to copy)
+- **`GET /oauth/authorize`** - Generate OAuth authorization URL with PKCE
+  - Returns: `{ authorization_url, state, code_verifier }`
+  - No auth required
 
-### Claude API (Requires `X-API-Key` header)
+- **`POST /oauth/exchange`** - Exchange authorization code for access token
+  - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
+  - Returns: Account info with tokens and expiry
+  - Saves account to JSON persistence
+  - No auth required
 
-- `POST /v1/messages` - Send message to Claude
-  - Supports `stream: true` for SSE streaming
-  - Supports `stream: false` for JSON response
+- **`GET /oauth/callback`** - OAuth callback handler
+  - Receives: `?code=AUTH_CODE&state=STATE`
 
-### Health Check
+### Account Management
 
-- `GET /health` - Health check with account status
+- **`GET /api/accounts`** - List all saved accounts
+  - Requires: `X-API-Key` header
+  - Returns: Array of accounts with status and expiry info
+
+- **`POST /api/accounts`** - Create account from OAuth exchange
+  - Requires: `X-API-Key` header
+  - Body: OAuth exchange payload
+
+### Proxy Requests
+
+- **`GET /api/proxy/*`** - Proxy requests to Claude API
+  - Requires: `X-API-Key` header
+  - Automatically selects healthy account via load balancing
+  - Refreshes token if within 60 seconds of expiry
+  - Returns: Claude API response (streaming or JSON)
+
+### Health & Status
+
+- **`GET /health`** - Health check endpoint
+  - No auth required
+  - Returns: Server status and account health summary
 
 ## Configuration
 
-See `config.example.yaml` for all available options:
+See `config.example.yaml` for template. Key sections:
 
-- **Server**: Host and port configuration
-- **OAuth**: Claude OAuth 2.0 settings
-- **Auth**: API key for proxy authentication
-- **Claude**: Claude API base URL
-- **Storage**: Data folder for account persistence
-- **Retry**: Retry configuration for failed requests
-- **Logger**: Logging level and format
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 4000
+
+oauth:
+  client_id: "your-claude-oauth-client-id"
+  authorize_url: "https://claude.ai/oauth/authorize"
+  token_url: "https://api.claude.ai/oauth/token"
+  redirect_uri: "http://localhost:4000/oauth/callback"
+  scope: "user:profile user:inference"
+
+claude:
+  base_url: "https://api.claude.ai"
+
+storage:
+  data_folder: "~/.claude-proxy/data"
+
+auth:
+  api_key: "your-secret-api-key"
+
+logger:
+  level: "info"
+  format: "text"
+
+retry:
+  max_retries: 3
+  retry_delay: "1s"
+```
 
 ## Environment Variables
 
-Override config with environment variables using double underscore:
+Override any YAML config with uppercase env vars using `__` for nesting:
 
 ```bash
+# Server
 export SERVER__PORT=8080
-export AUTH__API_KEY=my-secret-key
+export SERVER__HOST=127.0.0.1
+
+# OAuth
 export OAUTH__CLIENT_ID=your-client-id
+export OAUTH__TOKEN_URL=https://api.claude.ai/oauth/token
+
+# Auth
+export AUTH__API_KEY=your-secret-key
+
+# Storage
+export STORAGE__DATA_FOLDER=~/.claude-proxy/data
+
+# Logger
+export LOGGER__LEVEL=debug
+export LOGGER__FORMAT=json
 ```
 
 ## Data Storage
 
-Account data is stored in `~/.claude-proxy/data/account.json` with:
-- Access token
-- Refresh token
-- Organization UUID
-- Token expiry timestamp
+Account credentials stored in `~/.claude-proxy/data/` as JSON:
 
-**⚠️ Keep this file secure - it contains sensitive credentials**
+```
+~/.claude-proxy/data/
+├── account_*.json          # Individual account files
+└── ...
+```
+
+Each account contains:
+- `id`: Unique account identifier
+- `name`: Account display name
+- `access_token`: Current access token
+- `refresh_token`: For obtaining new access tokens
+- `expires_at`: Timestamp when access token expires
+- `refresh_at`: Timestamp of last token refresh
+- `status`: active/inactive
+- `last_refresh_error`: Error message if refresh failed
+
+**⚠️ SECURITY**: Keep `~/.claude-proxy/data/` secure (0700 permissions). Files contain sensitive OAuth tokens.
 
 ## Development
 
+**Backend:**
 ```bash
-# Install dependencies
-go mod download
+go run . server
+# or
+make be
+```
 
-# Run with custom config
-go run . server --config custom.yaml
+**Frontend:**
+```bash
+cd frontend && pnpm dev
+# or
+make fe
+```
 
-# Build
-go build -o claude-proxy
+**Full Stack** (two terminals):
+```bash
+# Terminal 1
+make be
 
-# Format code
-go fmt ./...
+# Terminal 2
+make fe
+```
 
-# Run tests
-go test ./...
+**Build Production Binary:**
+```bash
+cd frontend && pnpm build  # Build React
+go build -o bin/claude-proxy  # Embed frontend + build Go
+# or
+make build
+```
+
+**Testing & Formatting:**
+```bash
+go test ./...           # Run all tests
+go test ./modules/...   # Test specific module
+make format             # Format Go code
+make test-coverage      # Generate coverage report
+
+cd frontend && pnpm lint:fix  # Lint/fix frontend
 ```
 
 ## Architecture
 
+**Request Flow:**
 ```
-┌─────────────────┐
-│   Client App    │
-└────────┬────────┘
-         │ X-API-Key
-         ▼
-┌─────────────────┐
-│  Clove Proxy    │
-│  - OAuth PKCE   │
-│  - Auto Refresh │
-│  - SSE Stream   │
-└────────┬────────┘
-         │ Bearer Token
-         ▼
-┌─────────────────┐
-│  Claude API     │
-└─────────────────┘
+┌──────────────────────┐
+│   Client Request     │
+│   (X-API-Key Auth)   │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────────────────┐
+│   Claude Proxy Server            │
+│  ┌─────────────────────────────┐ │
+│  │ Multi-Account Load Balancer  │ │
+│  │ (Round-Robin + Health Check) │ │
+│  └────────────┬────────────────┘ │
+└───────────────┼──────────────────┘
+                │ Selected Account
+                ▼
+    ┌──────────────────────────┐
+    │ Token Refresh Check      │
+    │ (60s before expiry)      │
+    └────────────┬─────────────┘
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+   [Need Refresh]    [Token Valid]
+        │                 │
+        ▼                 │
+   ┌─────────┐           │
+   │  OAuth  │           │
+   │ Refresh │           │
+   └────┬────┘           │
+        │                │
+        └────────┬───────┘
+                 ▼
+      ┌────────────────────┐
+      │  Claude API        │
+      │  (Proxy Request)   │
+      └────────────────────┘
 ```
+
+**Key Components:**
+- **Scheduler**: Cronjob runs hourly to refresh expiring tokens
+- **Load Balancer**: Stateless round-robin account selection
+- **Token Refresh**: Automatic on-demand + scheduled
+- **OAuth Service**: PKCE-based token exchange and refresh
+- **JSON Persistence**: File-based account storage (no database)
+- **Admin Dashboard**: React UI for account/OAuth management
 
 ## Security
 
-- API key authentication for all proxy requests
-- OAuth 2.0 with PKCE for Claude authentication
-- Automatic token refresh with 60-second buffer
-- Account data stored with 0600 permissions
-- No token logging or exposure
+- **API Key Authentication**: All proxy requests require valid API key
+- **OAuth 2.0 + PKCE**: Secure, standards-compliant authentication
+- **Automatic Token Refresh**: 60-second buffer prevents token expiry
+- **File Permissions**: Account data stored with restricted 0700 permissions
+- **No Token Exposure**: Tokens never logged or exposed in responses
+- **HTTPS Ready**: Configure with reverse proxy for HTTPS in production
+
+## Token Refresh
+
+- **Automatic Hourly**: Cronjob runs at 0 minutes every hour
+- **On-Demand**: Triggers when token within 60 seconds of expiry
+- **Transparent**: Refresh happens automatically, no user intervention needed
+- **Error Handling**: Failed refreshes logged, account marked as unhealthy
+- **Load Balancer Aware**: Prefers accounts with valid tokens for better UX
 
 ## License
 
 MIT
 
+## Contributing
+
+Contributions welcome! Please:
+1. Follow existing code patterns (DDD, dependency injection)
+2. Add tests for new features
+3. Update documentation
+4. Test both backend and frontend changes
+
 ## Support
 
 For issues and questions:
-- GitHub Issues: [Report Issue](https://github.com/yourusername/claude-proxy/issues)
-- Documentation: See `docs/mvp.md` for detailed specifications
+- **GitHub Issues**: [Report Issue](https://github.com/yourusername/claude-proxy/issues)
+- **Documentation**: See `CLAUDE.md` for architecture and `docs/` for guides
 
