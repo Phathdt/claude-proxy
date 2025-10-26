@@ -42,11 +42,16 @@ export function useAuth() {
     }
 
     try {
-      const { valid, user } = await authApi.validate(token)
+      const { valid } = await authApi.validate(token)
 
-      if (valid && user) {
-        // Update stored user info
-        localStorage.setItem('user', JSON.stringify(user))
+      if (valid) {
+        // API key is valid - create a minimal user object for UI
+        const user: User = {
+          id: 'api-key-user',
+          email: 'admin@claude-proxy.local',
+          name: 'Admin',
+          role: 'admin',
+        }
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
@@ -56,18 +61,16 @@ export function useAuth() {
       } else {
         // Invalid token, clear storage
         localStorage.removeItem('auth_token')
-        localStorage.removeItem('user')
         setAuthState({
           isAuthenticated: false,
           isLoading: false,
           user: null,
-          error: 'Invalid authentication token',
+          error: 'Invalid API key',
         })
       }
     } catch (error) {
       // Validation failed, clear storage
       localStorage.removeItem('auth_token')
-      localStorage.removeItem('user')
       setAuthState({
         isAuthenticated: false,
         isLoading: false,
