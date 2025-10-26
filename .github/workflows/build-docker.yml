@@ -1,0 +1,119 @@
+name: Build & Push Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Node.js (for frontend build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          pnpm install
+          pnpm build
+          cd ..
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            phathdt379/claude-proxy:${{ github.event.inputs.version }}
+            phathdt379/claude-proxy:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          release_name: Claude Proxy v${{ github.event.inputs.version }}
+          body: |
+            # Claude Proxy v${{ github.event.inputs.version }}
+
+            ## Docker Image
+            ```bash
+            docker pull phathdt379/claude-proxy:${{ github.event.inputs.version }}
+            docker run -p 4000:4000 -v ~/.claude-proxy/data:/app/data phathdt379/claude-proxy:${{ github.event.inputs.version }}
+            ```
+
+            ## Configuration
+            1. Create `config.yaml` from `config.example.yaml`
+            2. Set your OAuth credentials and API key
+            3. Mount as volume: `-v $(pwd)/config.yaml:/app/config.yaml`
+
+            ## Features
+            - Multi-account Claude API proxy with OAuth 2.0
+            - Automatic token refresh (hourly + on-demand)
+            - Admin dashboard for account management
+            - Load balancing across accounts
+            - Standard `/v1/messages` endpoint
+
+            ## Quick Start
+            ```bash
+            docker run -d \
+              -p 4000:4000 \
+              -v ~/.claude-proxy/data:/app/data \
+              -v $(pwd)/config.yaml:/app/config.yaml \
+              --name claude-proxy \
+              phathdt379/claude-proxy:${{ github.event.inputs.version }}
+            ```
+
+            ## Links
+            - [GitHub Repository](https://github.com/${{ github.repository }})
+            - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+          draft: false
+          prerelease: false
+
+      - name: Build success notification
+        run: |
+          echo "✅ Build and Release Complete!"
+          echo ""
+          echo "📦 Docker Image:"
+          echo "   phathdt379/claude-proxy:${{ github.event.inputs.version }}"
+          echo "   phathdt379/claude-proxy:latest"
+          echo ""
+          echo "🏷️  GitHub Release Tag: v${{ github.event.inputs.version }}"
+          echo ""
+          echo "🚀 Pull and run:"
+          echo "   docker pull phathdt379/claude-proxy:${{ github.event.inputs.version }}"
+          echo "   docker run -p 4000:4000 phathdt379/claude-proxy:${{ github.event.inputs.version }}"
