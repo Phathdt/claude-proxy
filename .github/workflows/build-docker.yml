@@ -37,6 +37,7 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             phathdt379/claude-proxy:${{ github.event.inputs.version }}
             phathdt379/claude-proxy:latest
@@ -55,6 +56,8 @@ jobs:
             # Claude Proxy v${{ github.event.inputs.version }}
 
             ## 🐳 Docker Image
+
+            **Multi-platform support:** Linux (amd64, arm64) including macOS M1/M2/M3
 
             ```bash
             docker pull phathdt379/claude-proxy:${{ github.event.inputs.version }}

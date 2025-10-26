@@ -15,6 +15,10 @@ RUN cd frontend && \
 # Go build stage
 FROM golang:1.24-alpine AS backend-builder
 
+# Receive build args for cross-platform builds
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
 WORKDIR /workspace
 
 # Install build dependencies
@@ -32,8 +36,12 @@ COPY . .
 # Copy built frontend from frontend-builder
 COPY --from=frontend-builder /workspace/frontend/dist ./frontend/dist
 
-# Build binary with maximum optimization
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build binary with maximum optimization (supports both amd64 and arm64)
+RUN echo "Building for ${TARGETPLATFORM}" && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$(case ${TARGETPLATFORM} in \
+      "linux/arm64") echo "arm64" ;; \
+      *) echo "amd64" ;; \
+    esac) go build \
   -ldflags="-s -w -extldflags=-static" \
   -tags netgo,osusergo \
   -trimpath \
