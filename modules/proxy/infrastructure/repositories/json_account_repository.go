@@ -173,13 +173,64 @@ func (r *JSONAccountRepository) load() error {
 		return fmt.Errorf("failed to read accounts file: %w", err)
 	}
 
+	// Try to parse as array first (new format)
 	var dtos []*AccountDTO
-	if err := json.Unmarshal(data, &dtos); err != nil {
+	if err := json.Unmarshal(data, &dtos); err == nil && len(dtos) > 0 {
+		// Successfully parsed as array
+		for _, dto := range dtos {
+			account := accountDtoToEntity(dto)
+			r.accounts[account.ID] = account
+		}
+		return nil
+	}
+
+	// Fallback: try to parse as object/map (old format from CLI)
+	var accountMap map[string]interface{}
+	if err := json.Unmarshal(data, &accountMap); err != nil {
 		return fmt.Errorf("failed to parse accounts file: %w", err)
 	}
 
-	for _, dto := range dtos {
-		account := accountDtoToEntity(dto)
+	// Convert old format to new format
+	for orgUUID, val := range accountMap {
+		accountData, ok := val.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Extract OAuth token info
+		var accessToken, refreshToken string
+		var expiresAt int64
+		if oauthToken, ok := accountData["oauth_token"].(map[string]interface{}); ok {
+			if at, ok := oauthToken["access_token"].(string); ok {
+				accessToken = at
+			}
+			if rt, ok := oauthToken["refresh_token"].(string); ok {
+				refreshToken = rt
+			}
+			if exp, ok := oauthToken["expires_at"].(float64); ok {
+				expiresAt = int64(exp)
+			}
+		}
+
+		// Extract status
+		status := "active"
+		if s, ok := accountData["status"].(string); ok {
+			status = s
+		}
+
+		// Create account entity
+		account := &entities.Account{
+			ID:               orgUUID,
+			Name:             orgUUID,
+			OrganizationUUID: orgUUID,
+			AccessToken:      accessToken,
+			RefreshToken:     refreshToken,
+			ExpiresAt:        time.Unix(expiresAt, 0),
+			Status:           entities.AccountStatus(status),
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
 		r.accounts[account.ID] = account
 	}
 

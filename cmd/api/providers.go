@@ -290,8 +290,9 @@ func NewAccountRepository(cfg *config.Config, appLogger sctx.Logger) (interfaces
 }
 
 // NewClaudeAPIClient creates a new Claude API client
-func NewClaudeAPIClient(cfg *config.Config) *clients.ClaudeAPIClient {
-	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL)
+func NewClaudeAPIClient(cfg *config.Config, appLogger sctx.Logger) *clients.ClaudeAPIClient {
+	logger := appLogger.Withs(sctx.Fields{"component": "claude-api-client"})
+	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL, logger)
 }
 
 // NewTokenService creates a new token service

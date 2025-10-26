@@ -4,35 +4,15 @@ ifneq (,$(wildcard .env))
     export
 endif
 
-.PHONY: run build clean sqlc-generate docker-up docker-down dev dev-setup format format-go format-check test test-unit test-integration test-coverage test-watch fe-install fe-dev fe-build fe be
+.PHONY: run build clean sqlc-generate docker-up docker-down dev dev-setup format format-go format-check test test-unit test-integration test-coverage test-watch
 
 run:
 	go run .
 
-be:
-	@echo "Starting backend dev server on port 4000..."
-	go run .
-
-fe:
-	@echo "Starting frontend dev server on port 5173..."
-	cd frontend && pnpm dev
-
-build: fe-build
+build:
 	@echo "Building production binary with embedded frontend..."
 	go build -o bin/claude-proxy .
 	@echo "✅ Build complete: bin/claude-proxy"
-
-fe-install:
-	@echo "Installing frontend dependencies..."
-	cd frontend && pnpm install
-
-fe-dev:
-	@echo "Starting frontend dev server..."
-	cd frontend && pnpm dev
-
-fe-build:
-	@echo "Building frontend for production..."
-	cd frontend && pnpm build
 
 clean:
 	rm -rf bin/

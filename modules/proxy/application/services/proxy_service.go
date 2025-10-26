@@ -79,22 +79,8 @@ func (s *ProxyService) ProxyRequest(
 		path += "?" + req.URL.RawQuery
 	}
 
-	// Prepare headers
-	headers := make(map[string]string)
-	for key, values := range req.Header {
-		if key == "Authorization" || key == "Host" {
-			continue // Skip these headers
-		}
-		if len(values) > 0 {
-			headers[key] = values[0]
-		}
-	}
-
-	// Set Claude API authorization
-	headers["Authorization"] = "Bearer " + accessToken
-
-	// Proxy the request
-	resp, err := s.claudeClient.ProxyRequest(ctx, req.Method, path, headers, bodyBytes)
+	// Proxy the request - only pass access token and body, headers are built in claude_client
+	resp, err := s.claudeClient.ProxyRequest(ctx, req.Method, path, accessToken, bodyBytes)
 	if err != nil {
 		s.logger.Withs(sctx.Fields{
 			"error":      err.Error(),
