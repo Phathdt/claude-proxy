@@ -4,13 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`claude-proxy` is a full-stack application with a Go backend API and React frontend admin dashboard, designed for wallet risk assessment and proxy functionality.
+`claude-proxy` is a full-stack OAuth 2.0-based Claude API reverse proxy with multi-account support, automatic token refresh, and admin dashboard. It enables secure, scalable access to Claude API with built-in account management and load balancing.
+
+### Core Purpose
+- **OAuth 2.0 Proxy**: Authenticate users via Claude OAuth, proxy requests to Claude API
+- **Multi-Account Support**: Load balance across multiple Claude accounts
+- **Automatic Token Refresh**: Hourly cronjob + on-demand refresh with 60-second buffer before expiration
+- **Admin Dashboard**: React-based UI for account management and OAuth setup
 
 ### Backend Stack
 - **Framework**: Gin HTTP framework with Uber FX for dependency injection
 - **Configuration**: Viper with YAML config + env variables
 - **CLI**: urfave/cli v2 for command-line interface
-- **Logging**: Custom structured logging via service-context package
+- **Logging**: Structured logging via service-context package
+- **Scheduling**: robfig/cron/v3 for in-memory job scheduling (no external queue)
 
 ### Frontend Stack
 - **Framework**: React 19 with TypeScript
@@ -24,31 +31,89 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-### Application Structure
+### Domain-Driven Design Structure
+
+The backend follows **Domain-Driven Design (DDD)** pattern with clear separation of concerns:
+
+```
+modules/proxy/
+├── domain/               # Domain layer - business rules & interfaces
+│   ├── entities/         # Account, Token entities with business logic
+│   └── interfaces/       # Service & repository interfaces
+├── application/          # Application layer - business logic orchestration
+│   ├── services/         # AccountService, TokenService, ProxyService
+│   └── dto/             # Data Transfer Objects (request/response models)
+└── infrastructure/       # Infrastructure layer - external integrations
+    ├── clients/         # ClaudeAPIClient for proxying requests
+    ├── repositories/    # JSONAccountRepository, JSONTokenRepository
+    └── jobs/           # Scheduler for automatic token refresh
+```
+
+**Key Design Principles**:
+- **Dependency Inversion**: High-level modules depend on abstractions (interfaces)
+- **Repository Pattern**: Data persistence abstraction (JSON files)
+- **Service Layer**: Orchestrates domain logic and repositories
+- **Entity Aggregate**: Account entity manages itself and associated tokens
+
+### Full Project Structure
 
 ```
 claude-proxy/
-├── cmd/api/          # Backend API server setup and providers
-│   ├── server.go     # HTTP server lifecycle, embedded frontend serving
-│   └── providers.go  # Dependency injection providers
-├── cli/              # CLI command definitions
-├── config/           # Configuration management
-├── pkg/              # Shared packages
-│   ├── errors/       # Custom error types with HTTP context
-│   ├── telegram/     # Telegram notification client
-│   └── address/      # Address validation utilities
-├── frontend/         # React TypeScript frontend
+├── cmd/api/              # Server entry point & DI setup
+│   ├── server.go        # HTTP server, routes, middleware
+│   ├── providers.go      # Uber FX dependency injection
+│   └── handlers/         # HTTP request handlers
+├── config/               # Configuration management (Viper)
+├── pkg/                  # Shared packages
+│   ├── errors/          # Custom AppError with HTTP context
+│   ├── oauth/           # OAuth 2.0 service & PKCE
+│   └── telegram/        # Optional Telegram notifications
+├── modules/             # Domain modules (see DDD structure above)
+├── cli/                 # CLI command implementations
+├── frontend/            # React TypeScript admin dashboard
 │   ├── src/
-│   │   ├── components/  # React components (app-tokens, layout, ui)
+│   │   ├── components/  # React components
 │   │   ├── hooks/       # React Query hooks
-│   │   ├── lib/         # API client, utilities, mock data
-│   │   ├── pages/       # Page components (login, dashboard, tokens, app-tokens)
+│   │   ├── lib/         # API client, utilities
+│   │   ├── pages/       # Page components
 │   │   └── types/       # TypeScript type definitions
-│   ├── index.html       # Entry HTML
-│   ├── vite.config.ts   # Vite configuration with proxy setup
-│   └── package.json     # Frontend dependencies
-└── main.go             # Application entry point, embeds frontend
+│   └── vite.config.ts   # Vite with backend proxy setup
+└── main.go              # Entry point (embeds frontend)
 ```
+
+### Token Refresh Flow
+
+There are **two triggers** for token refresh:
+
+1. **Cronjob Trigger** (Every Hour): `modules/proxy/infrastructure/jobs/scheduler.go`
+   - Runs at minute 0 of every hour (`0 * * * *` cron expression)
+   - Iterates all active accounts, checks `NeedsRefresh()` (60s buffer)
+   - Calls `AccountService.GetValidToken()` → `refreshToken()` → `TokenRefresher.RefreshAccessToken()` (OAuth API)
+   - Logs summary (refreshed/failed/skipped counts)
+   - 5-minute timeout for entire job execution
+
+2. **API Request Trigger** (On-Demand): `modules/proxy/application/services/proxy_service.go`
+   - When user sends request to `/api/proxy/*`
+   - Calls `GetValidAccount()` for load-balanced account selection
+   - If token within 60s of expiration, automatically refreshes before using
+   - Transparent to user - refresh happens inside `GetValidToken()`
+
+**Account Refresh Logic** (in `modules/proxy/domain/entities/account.go`):
+```go
+func (a *Account) NeedsRefresh() bool {
+    return time.Now().After(a.ExpiresAt.Add(-60 * time.Second))
+}
+```
+- Returns `true` if current time > (expiration - 60 seconds)
+- Both triggers use same logic for consistency
+
+### Load Balancing Strategy
+
+From `proxy_service.go`:
+- **Round-Robin Selection**: Uses timestamp modulo to distribute requests
+- **Health Filtering**: Prioritizes accounts that don't need immediate refresh
+- **No Persistent State**: Selection algorithm is stateless
+- **All Accounts Eligible**: Load balancing works across all active accounts
 
 ### Frontend-Backend Integration
 
@@ -83,10 +148,21 @@ Providers are defined in `cmd/api/providers.go`. Each provider function returns 
 
 Configuration uses **Viper** with YAML files and environment variable overrides:
 
-- Config file: `config.yaml` (see `config.example.yaml` for template)
-- Environment variables: Uppercase with double underscore for nested keys (e.g., `SERVER__PORT=4000`)
-- Structure defined in `config/config.go`
-- Key sections: `server`, `logger`, `telegram`, `wallet_checker`
+- **Config File**: `config.yaml` (see `config.example.yaml` for template)
+- **Environment Variables**: Uppercase with double underscore for nested keys (e.g., `SERVER__PORT=4000`)
+- **Structure**: Defined in `config/config.go`
+- **Key Sections**:
+  - `server`: Host/port (default: 0.0.0.0:4000)
+  - `oauth`: Client ID, authorize/token URLs, redirect URI, scopes
+  - `claude`: Claude API base URL
+  - `storage`: Data folder for JSON persistence (default: `~/.claude-proxy/data`)
+  - `logger`: Level, format (text/json)
+  - `retry`: Max retries, retry delay
+  - `telegram`: Optional notification alerts
+
+**Data Storage**: JSON files in `~/.claude-proxy/data/`
+- `account.json`: Persisted account credentials with tokens
+- Per-account file structure: ID, name, tokens, expiration times, OAuth state
 
 ### Error Handling
 
@@ -109,105 +185,93 @@ Uses `github.com/phathdt/service-context` for component lifecycle:
 
 ### Development
 
-**Backend:**
+**Backend (Port 4000):**
 ```bash
-# Run backend only (port 4000)
-make be
-go run .
+# Run directly
+go run . server
 
-# Run with custom config
+# Or with make
+make be
+
+# With custom config file
 go run . server --config custom.yaml
 ```
 
-**Frontend:**
+**Frontend (Port 5173):**
 ```bash
-# Install frontend dependencies
-cd frontend && pnpm install
-
-# Run frontend dev server (port 5173)
-make fe
+# Development server with hot reload
 cd frontend && pnpm dev
+# Or: make fe
 
-# Lint frontend
-cd frontend && pnpm lint
+# Lint and fix
 cd frontend && pnpm lint:fix
 
-# Format frontend code
+# Format code
 cd frontend && pnpm format
-cd frontend && pnpm format:check
 ```
 
-**Full Stack:**
+**Full Stack Development** (Two Terminals):
 ```bash
-# Run both backend and frontend (in separate terminals)
-make be  # Terminal 1
-make fe  # Terminal 2
+# Terminal 1: Backend
+make be
+# or: go run . server
 
-# Build production binary with embedded frontend
-make build  # outputs to bin/claude-proxy
+# Terminal 2: Frontend
+make fe
+# or: cd frontend && pnpm dev
+```
+
+**Production Build:**
+```bash
+# Build frontend (bundles React into dist/)
+cd frontend && pnpm build
+
+# Build Go binary with embedded frontend (outputs to bin/claude-proxy)
+go build -o bin/claude-proxy
+
+# Or use make
+make build
 ```
 
 **Dependencies:**
 ```bash
-# Backend dependencies
-make deps
+# Go dependencies
 go mod tidy
 
-# Frontend dependencies (already in package.json)
+# Frontend dependencies
 cd frontend && pnpm install
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
+# All Go tests
 make test
 go test ./... -v
 
-# Run only unit tests
-make test-unit
-go test ./modules/... -v -short
+# Specific module
+go test ./modules/proxy/... -v
 
-# Run integration tests
-make test-integration
-go test ./... -v -run Integration
+# Single test function
+go test ./modules/proxy/... -v -run TestFunctionName
 
-# Generate coverage report
-make test-coverage  # creates coverage.html
-
-# Watch mode (requires entr)
-make test-watch
+# With coverage
+go test ./... -cover
+go test ./... -coverprofile=coverage.out
 ```
 
 ### Code Formatting
 
 ```bash
-# Format all Go files (runs gofmt, goimports, golines, gofumpt)
-make format
+# Format Go code
+make format   # Full format pipeline (gofmt, goimports, etc.)
 
-# Check formatting without changes
+# Check without modifying
 make format-check
-```
 
-### Docker
-
-```bash
-# Start services (if docker-compose exists)
-make docker-up
-docker-compose up -d
-
-# Stop services
-make docker-down
-```
-
-### Development Workflow
-
-```bash
-# Setup development environment
-make dev-setup  # formats code and tidies dependencies
-
-# Run with Docker services
-make dev  # starts docker-compose, waits 5s, then runs app
+# Frontend formatting
+cd frontend && pnpm format
+cd frontend && pnpm format:check
 ```
 
 ## Development Guidelines
@@ -243,119 +307,230 @@ make dev  # starts docker-compose, waits 5s, then runs app
 ### Backend Development
 
 **Adding New API Endpoints:**
-1. Define handler in appropriate module under `cmd/api/` or create new module
-2. Register routes in `cmd/api/server.go` under the `/api` group
-3. Use structured logging via `sctx.GlobalLogger().GetLogger("component-name")`
-4. Return errors by panicking with AppError: `panic(errors.NewBadRequestError(...))`
+1. Create handler in `cmd/api/handlers/` if needed
+2. Register routes in `cmd/api/server.go` under `/api` group
+3. Use structured logging: `sctx.GlobalLogger().GetLogger("component-name")`
+4. Panic-based error handling: `panic(errors.NewBadRequestError(...))`
+
+**Working with OAuth & Token Refresh:**
+- OAuth service: `pkg/oauth/oauth.go` - Handles PKCE, token exchange, refresh
+- Account management: `modules/proxy/application/services/account_service.go`
+  - `GetValidToken(ctx, accountID)` - Returns valid token, auto-refreshes if needed
+  - `refreshToken(ctx, account)` - Refreshes access token from refresh token
+- Token refresh triggers:
+  - **Automatic**: Scheduler at `modules/proxy/infrastructure/jobs/scheduler.go` (every hour)
+  - **On-Demand**: Inside `GetValidToken()` when token within 60s of expiration
+
+**Account Entity & Persistence:**
+- Entity: `modules/proxy/domain/entities/account.go`
+  - Methods: `NeedsRefresh()`, `UpdateTokens()`, `UpdateRefreshError()`, `Deactivate()`
+- Repository: `modules/proxy/infrastructure/repositories/json_account_repository.go`
+  - Reads/writes `~/.claude-proxy/data/account.json`
+  - Thread-safe JSON persistence
+
+**Multi-Account Load Balancing:**
+- In `proxy_service.go`: `GetValidAccount()` uses round-robin with health filtering
+- Algorithm: `time.Now().UnixNano() % len(accounts)` (stateless, no persistent counter)
+- Prefers accounts not needing immediate refresh for better UX
 
 ### Testing Strategy
 
-- Unit tests: Mock external dependencies, test business logic in isolation
+- Unit tests: Mock repositories and external services
+- Integration tests: Test with actual JSON file storage
 - Use `_test.go` suffix for all test files
-- Example: `pkg/address/validator_test.go`
+- Mock OAuth responses when testing token refresh
 
 ### Configuration Changes
 
-1. Update structs in `config/config.go`
-2. Add defaults in `LoadConfig()` if necessary
+1. Update struct in `config/config.go`
+2. Add defaults in `LoadConfig()` function
 3. Update `config.example.yaml` template
-4. Document env variable names using double underscore convention
+4. Document env variable names (uppercase with `__` for nesting)
+
+**Example**: OAuth client ID can be set via `OAUTH__CLIENT_ID=xxx`
 
 ### Logging Best Practices
 
 ```go
 logger := sctx.GlobalLogger().GetLogger("component-name")
-logger.Info("message")
-logger.Withs(sctx.Fields{"key": "value"}).Error("error message")
+logger.Info("starting token refresh")
+logger.Withs(sctx.Fields{
+    "account_id": accountID,
+    "expires_in": expiresIn,
+}).Info("token refreshed successfully")
 ```
 
-Structured fields should use `sctx.Fields` map for consistent JSON logging.
+Use `sctx.Fields` map for structured, JSON-serializable logging.
 
 ## Key Technical Details
 
 ### CLI Commands
 
-- **Default**: Runs server with `config.yaml`
-- **server/s**: Start API server (alias for default)
-- **api/a**: Same as server (backward compatibility)
+Defined in `main.go`, implemented in `cli/cli.go`:
 
-All commands defined in `main.go:12-50`, implemented in `cli/cli.go`.
+- **`claude-proxy server`** (or `claude-proxy`): Start API server with `config.yaml`
+- **`--config FILE`**: Specify custom config file path (default: `config.yaml`)
 
-### HTTP Server Features
+Server startup:
+1. Loads configuration from YAML + environment overrides
+2. Initializes ServiceContext and logging
+3. Creates Gin engine with middleware stack
+4. Registers OAuth handlers, proxy handlers, account handlers
+5. Starts token refresh scheduler (cronjob)
+6. Serves embedded React frontend for SPA routing
 
-- **Middleware stack**: Logger → Recovery → CORS → Timeout (30s)
-- **CORS**: Allows all origins (`Access-Control-Allow-Origin: *`)
-- **Health check**: `GET /health` returns status and timestamp
-- **Gin release mode**: Production-optimized, minimal logging
+### HTTP Server Architecture
 
-### Telegram Integration
+**Middleware Stack** (in `cmd/api/providers.go:NewGinEngine()`):
+1. **Logger**: Structured request logging with latency
+2. **Recovery**: Panic recovery → AppError → JSON response
+3. **CORS**: Allow all origins with wildcard headers
+4. **Timeout**: 30-second request timeout
+5. **SPA Support**: Fallback to `index.html` for undefined routes
 
-Optional notification system (`pkg/telegram/telegram.go`):
-- Enable via `telegram.enabled: true` in config
-- Supports Markdown formatting
-- Configurable timeout and retry logic
-- Used for monitoring and alerts
+**Key Routes** (in `cmd/api/server.go`):
+- `GET /health` - Health status
+- `GET /oauth/authorize` - Get OAuth authorization URL + PKCE state
+- `POST /oauth/exchange` - Exchange auth code for tokens
+- `GET /api/accounts` - List accounts
+- `POST /api/accounts` - Create account from OAuth code
+- `GET /api/proxy/*` - Proxy requests to Claude API
+- `GET /api/tokens` - List API tokens (admin)
+- Static files: `/*` - Serve React frontend (SPA)
+
+### Token Refresh Scheduler
+
+`modules/proxy/infrastructure/jobs/scheduler.go`:
+- Lifecycle managed by Uber FX with `fx.Lifecycle` hooks
+- Starts automatically when app starts
+- Gracefully stops on shutdown
+- Thread-safe cron execution with mutex
+- 5-minute timeout for job execution to prevent hangs
 
 ### Environment Variables
 
-Override any YAML config with env vars:
+Override any YAML config using uppercase with double underscores:
+
 ```bash
-# Examples
+# Server
+export SERVER__HOST=127.0.0.1
 export SERVER__PORT=8080
-export TELEGRAM__ENABLED=true
+
+# OAuth
+export OAUTH__CLIENT_ID=your-client-id
+export OAUTH__TOKEN_URL=https://api.claude.ai/oauth/token
+
+# Storage
+export STORAGE__DATA_FOLDER=~/.claude-proxy/data
+
+# Logger
 export LOGGER__LEVEL=debug
+export LOGGER__FORMAT=json
+
+# Telegram (optional)
+export TELEGRAM__ENABLED=true
+export TELEGRAM__BOT_TOKEN=your-token
+export TELEGRAM__CHAT_ID=your-chat-id
 ```
 
 ## Common Patterns
 
-### Adding a New Domain Module
+### Adding a New Service
 
-1. Create package under project root or `pkg/`
-2. Define models, business logic, handlers
-3. Create provider functions in module or `cmd/api/providers.go`
-4. Add to provider chain in `cmd/api/providers.go:APIProviders`
-5. Register routes in server startup
+1. Define interface in `modules/proxy/domain/interfaces/`
+2. Implement in `modules/proxy/application/services/`
+3. Create provider function in `cmd/api/providers.go`
+4. Add to `APIProviders` option list
+5. Inject as dependency into handlers or other services
+
+**Example** (Token Service):
+```go
+// Step 1: Interface
+type TokenService interface {
+    GetTokens(ctx context.Context) ([]Token, error)
+}
+
+// Step 2: Implementation
+type tokenService struct {
+    repo interfaces.TokenRepository
+}
+
+// Step 3 & 4: Provider
+func NewTokenService(tokenRepo interfaces.TokenRepository) interfaces.TokenService {
+    return services.NewTokenService(tokenRepo)
+}
+```
+
+### Adding a New HTTP Handler
+
+1. Create handler in `cmd/api/handlers/`
+2. Implement `func (h *Handler) HandleRequest(c *gin.Context)`
+3. Create provider function in `cmd/api/providers.go`
+4. Register routes in `cmd/api/server.go` (typically under `/api` group)
+
+**Example Pattern**:
+```go
+func (h *MyHandler) HandleRequest(c *gin.Context) {
+    // Parse request
+    // Call service
+    // Return JSON or panic with AppError
+    c.JSON(http.StatusOK, gin.H{"data": result})
+}
+```
+
+### Working with DDD Interfaces
+
+Keep high-level code depending on abstractions:
+```go
+// Good - depends on interface
+func NewService(repo interfaces.AccountRepository) *Service {
+    return &Service{repo: repo}
+}
+
+// Implementation can be swapped (JSON, SQL, etc.)
+repo := repositories.NewJSONAccountRepository(dataFolder)
+```
 
 ### Middleware Pattern
 
-Add middleware in `NewGinEngine()` at `cmd/api/providers.go:82-161`:
+Add middleware in `NewGinEngine()` (`cmd/api/providers.go:NewGinEngine()`):
 ```go
 engine.Use(func(c *gin.Context) {
-    // Your middleware logic
+    // Before request
+    c.Set("custom_key", "value")
+
     c.Next()
+
+    // After request
+    statusCode := c.Writer.Status()
 })
-```
-
-### Component Registration
-
-Add to service context in `InitServiceContext()`:
-```go
-sc.Load() // Auto-discovers components from config
-// Or manually register components as needed
 ```
 
 ## Admin Dashboard Features
 
-The frontend provides an admin interface for managing:
+React-based UI for OAuth setup and account management:
 
-1. **Authentication** (`/login`):
-   - Mock authentication (currently accepts any email/password)
-   - Stores token in localStorage
-   - Protected route wrapper for admin pages
+1. **Login** (`/login`):
+   - Simple authentication (mock or real based on backend)
+   - Stores auth token in localStorage
+   - Protected routes check `localStorage.getItem('auth_token')`
 
-2. **Dashboard** (`/admin/dashboard`):
-   - Overview and statistics
-   - Quick access to main features
+2. **OAuth Setup** (`/admin/accounts` or similar):
+   - Call `GET /oauth/authorize` to get authorization URL
+   - User visits authorization URL
+   - After OAuth redirect, exchange code via `POST /oauth/exchange`
+   - Account auto-created and tokens persisted
 
-3. **Tokens Management** (`/admin/tokens`):
-   - CRUD operations for API tokens
-   - Token status (active/inactive)
-   - Usage tracking (count, last used)
+3. **Account Management**:
+   - View active accounts and their token expiration
+   - Monitor refresh status and errors
+   - Show account health (active/inactive status)
 
-4. **App Tokens Management** (`/admin/app-tokens`):
-   - OAuth application management
-   - Fields: name, email, orgId, type (oauth/cookies), accountType (pro/max)
-   - No OAuth implementation details (clientId, secret, etc. removed)
-   - Status and usage tracking
+4. **Token Management** (Admin):
+   - API token CRUD operations
+   - Usage tracking and revocation
 
-**Current State:** Frontend uses mock data in `frontend/src/lib/api.ts`. Replace mock functions with real API calls when backend endpoints are ready.
+**Current Implementation**:
+- Frontend in `frontend/src/pages/` and `frontend/src/components/`
+- Backend provides REST API in `cmd/api/handlers/`
+- Real API calls via React Query hooks in `frontend/src/hooks/`
