@@ -1,17 +1,3 @@
-# Frontend build stage (native only - no cross-compilation)
-FROM --platform=linux/amd64 node:22-alpine AS frontend-builder
-
-WORKDIR /workspace
-
-# Copy frontend source
-COPY frontend ./frontend
-
-# Install and build frontend
-RUN cd frontend && \
-    npm install -g pnpm && \
-    CI=true pnpm install && \
-    pnpm build
-
 # Go build stage
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS backend-builder
 
@@ -33,8 +19,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Copy built frontend from frontend-builder
-COPY --from=frontend-builder /workspace/frontend/dist ./frontend/dist
+# Copy pre-built frontend (built by GitHub Actions workflow)
+COPY frontend/dist ./frontend/dist
 
 # Build binary with maximum optimization (supports both amd64 and arm64)
 RUN echo "Building for ${TARGETPLATFORM}" && \
