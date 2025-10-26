@@ -1,5 +1,5 @@
-# Frontend build stage
-FROM node:22-alpine AS frontend-builder
+# Frontend build stage (native only - no cross-compilation)
+FROM --platform=linux/amd64 node:22-alpine AS frontend-builder
 
 WORKDIR /workspace
 
@@ -13,7 +13,7 @@ RUN cd frontend && \
     pnpm build
 
 # Go build stage
-FROM golang:1.24-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS backend-builder
 
 # Receive build args for cross-platform builds
 ARG TARGETPLATFORM
