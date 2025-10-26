@@ -245,10 +245,10 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 
 	if resp.StatusCode != http.StatusOK {
 		s.logger.Withs(sctx.Fields{
-			"action":       "refresh_token_error",
-			"status_code":  resp.StatusCode,
-			"error_body":   string(body),
-			"stage":        "http_status",
+			"action":      "refresh_token_error",
+			"status_code": resp.StatusCode,
+			"error_body":  string(body),
+			"stage":       "http_status",
 		}).Error("Token refresh failed with non-200 status")
 		return nil, fmt.Errorf("token refresh failed with status %d: %s", resp.StatusCode, string(body))
 	}

@@ -1,4 +1,4 @@
-# Clove MVP Configuration Example
+# Claude Proxy Configuration Example
 # Copy this file to config.yaml and fill in your values
 
 # Server configuration
@@ -37,7 +37,7 @@ claude:
 
 # Storage configuration
 storage:
-  data_folder: '~/.clove/data'
+  data_folder: '~/.claude-proxy/data'
 
 # Retry configuration
 retry:

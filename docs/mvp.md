@@ -1,6 +1,6 @@
-# Clove MVP - OAuth Edition
+# Claude Proxy MVP - OAuth Edition
 
-> Minimum Viable Product specification for Clove with OAuth authentication and refresh token support
+> Minimum Viable Product specification for Claude Proxy with OAuth authentication and refresh token support
 
 ## Table of Contents
 
@@ -79,7 +79,7 @@ Create a lightweight, production-ready Claude reverse proxy that uses OAuth 2.0 
 #### 5. Configuration
 
 - Environment variable support
-- JSON config file (`~/.clove/data/config.json`)
+- JSON config file (`~/.claude-proxy/data/config.json`)
 - Basic settings (host, port, API key)
 
 #### 6. Error Handling
@@ -234,7 +234,7 @@ class Settings:
     CLAUDE_API_BASEURL: str = "https://api.claude.ai"
 
     # Storage
-    DATA_FOLDER: str = "~/.clove/data"
+    DATA_FOLDER: str = "~/.claude-proxy/data"
 
     # Retry
     MAX_RETRIES: int = 3
@@ -292,7 +292,7 @@ class Settings:
 
 ```
 ┌──────────┐                                    ┌──────────────┐
-│  Client  │                                    │ Clove Proxy  │
+│  Client  │                                    │ Claude Proxy Proxy  │
 └────┬─────┘                                    └──────┬───────┘
      │                                                  │
      │ 1. POST /v1/messages                            │
@@ -572,7 +572,7 @@ GET /oauth/authorize
 ## File Structure
 
 ```
-clove-mvp/
+claude-proxy/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                      # FastAPI app entry point
@@ -643,7 +643,7 @@ class Account(BaseModel):
     updated_at: int  # Unix timestamp
 ```
 
-**Storage**: `~/.clove/data/account.json`
+**Storage**: `~/.claude-proxy/data/account.json`
 
 ```json
 {
@@ -729,7 +729,7 @@ OAUTH_REDIRECT_URI=http://localhost:5201/oauth/callback
 CLAUDE_API_BASEURL=https://api.claude.ai
 
 # Data Storage
-DATA_FOLDER=~/.clove/data
+DATA_FOLDER=~/.claude-proxy/data
 
 # Retry Configuration
 MAX_RETRIES=3
@@ -753,7 +753,7 @@ LOG_LEVEL=INFO
     "redirect_uri": "http://localhost:5201/oauth/callback"
   },
   "claude_api_baseurl": "https://api.claude.ai",
-  "data_folder": "~/.clove/data",
+  "data_folder": "~/.claude-proxy/data",
   "max_retries": 3,
   "retry_delay": 1,
   "log_level": "INFO"
@@ -879,14 +879,14 @@ LOG_LEVEL=INFO
 ### Error Types
 
 ```python
-class CloveException(Exception):
-    """Base exception for all Clove errors"""
+class Claude ProxyException(Exception):
+    """Base exception for all Claude Proxy errors"""
     def __init__(self, message: str, code: int = 500):
         self.message = message
         self.code = code
         super().__init__(self.message)
 
-class OAuthError(CloveException):
+class OAuthError(Claude ProxyException):
     """OAuth-related errors"""
     pass
 
@@ -898,15 +898,15 @@ class RefreshTokenError(OAuthError):
     """Failed to refresh token"""
     pass
 
-class APIError(CloveException):
+class APIError(Claude ProxyException):
     """Claude API errors"""
     pass
 
-class AuthenticationError(CloveException):
+class AuthenticationError(Claude ProxyException):
     """Authentication errors"""
     pass
 
-class ValidationError(CloveException):
+class ValidationError(Claude ProxyException):
     """Request validation errors"""
     pass
 ```
@@ -1123,8 +1123,8 @@ ruff = "^0.1.0"
 ### 1. Installation
 
 ```bash
-git clone https://github.com/yourusername/clove-mvp.git
-cd clove-mvp
+git clone https://github.com/yourusername/claude-proxy.git
+cd claude-proxy
 poetry install
 ```
 
@@ -1166,7 +1166,7 @@ curl -X POST http://localhost:5201/v1/messages \
 
 ## Conclusion
 
-This MVP specification defines a focused, achievable version of Clove that provides core OAuth authentication with refresh token support and basic message sending capabilities. The implementation can be completed in approximately 5 days and provides a solid foundation for future enhancements.
+This MVP specification defines a focused, achievable version of Claude Proxy that provides core OAuth authentication with refresh token support and basic message sending capabilities. The implementation can be completed in approximately 5 days and provides a solid foundation for future enhancements.
 
 **Key Differentiators**:
 

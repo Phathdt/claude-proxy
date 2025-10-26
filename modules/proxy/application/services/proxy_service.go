@@ -134,10 +134,10 @@ func (s *ProxyService) GetValidAccount(ctx context.Context) (*entities.Account, 
 	account := s.selectAccountRoundRobin(selectedAccounts)
 
 	s.logger.Withs(sctx.Fields{
-		"account_id":      account.ID,
-		"account_name":    account.Name,
-		"needs_refresh":   account.NeedsRefresh(),
-		"total_accounts":  len(accounts),
+		"account_id":       account.ID,
+		"account_name":     account.Name,
+		"needs_refresh":    account.NeedsRefresh(),
+		"total_accounts":   len(accounts),
 		"healthy_accounts": len(healthyAccounts),
 	}).Debug("Selected account for proxy request")
 

@@ -202,4 +202,3 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 		"account": accountResponse,
 	})
 }
-

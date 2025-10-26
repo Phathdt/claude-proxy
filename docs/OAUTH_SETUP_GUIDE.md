@@ -1,11 +1,11 @@
 # OAuth Setup Guide - Step by Step
 
-This guide walks you through setting up OAuth authentication for Clove to access the Claude API.
+This guide walks you through setting up OAuth authentication for Claude Proxy to access the Claude API.
 
 ## Prerequisites
 
 1. **Claude OAuth Client ID** - Obtain from Claude/Anthropic
-2. **Running Clove Server** - Backend must be running
+2. **Running Claude Proxy Server** - Backend must be running
 3. **Browser** - To authorize with Claude
 
 ---
@@ -34,7 +34,7 @@ claude:
   base_url: "https://api.claude.ai"
 
 storage:
-  data_folder: "~/.clove/data"  # Tokens stored here as account.json
+  data_folder: "~/.claude-proxy/data"  # Tokens stored here as account.json
 
 retry:
   max_retries: 3
@@ -59,7 +59,7 @@ make be
 
 You should see:
 ```
-INFO Starting Clove API Server port=5201
+INFO Starting Claude Proxy API Server port=5201
 INFO API Endpoints:
 INFO   OAuth:
 INFO     GET  /oauth/authorize - Generate OAuth URL (returns state + code_verifier)
@@ -132,7 +132,7 @@ The system will:
 - Validate the state matches
 - Exchange the code for access and refresh tokens
 - Fetch your organization UUID (if not provided)
-- Save everything to `~/.clove/data/account.json`
+- Save everything to `~/.claude-proxy/data/account.json`
 - Display success message
 
 ### Step 7: Success!
@@ -289,17 +289,17 @@ data: {"type":"content_block_delta","delta":{"text":"... "}}
 
 ### Automatic Token Refresh
 
-Clove automatically refreshes your access token:
+Claude Proxy automatically refreshes your access token:
 - Checks expiry before each API call
 - Refreshes if token expires in less than 60 seconds
-- Updates stored tokens in `~/.clove/data/account.json`
+- Updates stored tokens in `~/.claude-proxy/data/account.json`
 - No manual intervention needed!
 
 ### Account Storage Location
 
 Your account data is stored at:
 ```
-~/.clove/data/account.json
+~/.claude-proxy/data/account.json
 ```
 
 File contents:
@@ -327,7 +327,7 @@ To set up a new account or re-authorize:
 
 1. Delete the account file:
    ```bash
-   rm ~/.clove/data/account.json
+   rm ~/.claude-proxy/data/account.json
    ```
 
 2. Follow the OAuth setup steps again (Method 1 or 2)
@@ -362,7 +362,7 @@ To set up a new account or re-authorize:
 **Cause:** No account configured or refresh token invalid
 
 **Solution:**
-1. Check if `~/.clove/data/account.json` exists
+1. Check if `~/.claude-proxy/data/account.json` exists
 2. Verify account status: `curl http://localhost:5201/health`
 3. If invalid, re-run OAuth setup
 
@@ -377,7 +377,7 @@ To set up a new account or re-authorize:
 **Cause:** Refresh token expired or revoked
 
 **Solution:**
-1. Delete account: `rm ~/.clove/data/account.json`
+1. Delete account: `rm ~/.claude-proxy/data/account.json`
 2. Re-run OAuth setup
 3. Authorize with Claude again
 
@@ -400,7 +400,7 @@ To set up a new account or re-authorize:
    - Rotate regularly
 
 2. **Secure Token Storage**
-   - Keep `~/.clove/data/account.json` secure
+   - Keep `~/.claude-proxy/data/account.json` secure
    - File has `0600` permissions (owner-only access)
    - Back up securely if needed
 

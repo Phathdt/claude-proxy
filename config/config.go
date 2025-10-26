@@ -124,7 +124,7 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	// Set default storage config if not specified
 	if config.Storage.DataFolder == "" {
-		config.Storage.DataFolder = "~/.clove/data"
+		config.Storage.DataFolder = "~/.claude-proxy/data"
 	}
 
 	// Set default retry config if not specified

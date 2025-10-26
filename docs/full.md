@@ -1,6 +1,6 @@
-# Clove - Feature Documentation
+# Claude Proxy - Feature Documentation
 
-> Comprehensive feature list for Clove reverse proxy v0.3.1
+> Comprehensive feature list for Claude Proxy reverse proxy v0.1.0
 
 ## Table of Contents
 
@@ -29,10 +29,10 @@
 
 ## Project Overview
 
-**Type**: Python FastAPI-based Claude reverse proxy
-**Version**: 0.3.1
-**Python Support**: 3.11+
-**Primary Purpose**: Reverse proxy that allows accessing Claude.ai and Claude API through a standard API interface
+**Type**: Go Gin-based Claude reverse proxy with React admin dashboard
+**Version**: 0.1.0
+**Go Support**: 1.21+
+**Primary Purpose**: OAuth2-based proxy for multi-account Claude API access with automatic token refresh
 
 ---
 
@@ -251,7 +251,7 @@ Support for complex message structures with multiple content types:
 
 - `GET /api/admin/settings` - Get all settings
 - `PUT /api/admin/settings` - Update settings
-- JSON config file support (`~/.clove/data/config.json`)
+- JSON config file support (`~/.claude-proxy/data/config.json`)
 - Environment variable override support
 - Dynamic settings updates without restart
 
@@ -278,7 +278,7 @@ Support for complex message structures with multiple content types:
 
 ### Data Storage
 
-- Persistent data folder (`~/.clove/data/`)
+- Persistent data folder (`~/.claude-proxy/data/`)
 - JSON-based account storage
 - JSON-based configuration storage
 - No-filesystem mode support for serverless environments
@@ -570,7 +570,7 @@ Support for complex message structures with multiple content types:
 # Server Configuration
 PORT=5201
 HOST=0.0.0.0
-DATA_FOLDER=~/.clove/data
+DATA_FOLDER=~/.claude-proxy/data
 
 # Authentication
 ADMIN_API_KEYS=admin-key-1,admin-key-2
@@ -613,7 +613,7 @@ OAUTH_REDIRECT_URI=http://localhost:5201/oauth/callback
 # Logging
 LOG_LEVEL=INFO
 LOG_TO_FILE=true
-LOG_FILE_PATH=~/.clove/logs/clove.log
+LOG_FILE_PATH=~/.claude-proxy/logs/claude-proxy.log
 LOG_FILE_ROTATION=10 MB
 ```
 
@@ -718,10 +718,10 @@ Based on the current feature set, potential enhancements could include:
 
 ## License & Attribution
 
-Clove is an open-source project. Please refer to the LICENSE file in the repository for terms and conditions.
+Claude Proxy is an open-source project. Please refer to the LICENSE file in the repository for terms and conditions.
 
 ---
 
 **Documentation Version**: 1.0.0
-**Last Updated**: 2025-10-25
-**Clove Version**: 0.3.1
+**Last Updated**: 2025-10-26
+**Claude Proxy Version**: 0.1.0

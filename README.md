@@ -1,4 +1,4 @@
-# Clove - Claude API Reverse Proxy
+# Claude Proxy - Claude API Reverse Proxy
 
 A lightweight, production-ready Claude reverse proxy with OAuth 2.0 authentication and automatic token refresh.
 
@@ -34,8 +34,8 @@ cp config.example.yaml config.yaml
 
 ```bash
 # Build and run
-go build -o clove
-./clove
+go build -o claude-proxy
+./claude-proxy
 
 # Or run directly
 go run . server
@@ -154,7 +154,7 @@ export OAUTH__CLIENT_ID=your-client-id
 
 ## Data Storage
 
-Account data is stored in `~/.clove/data/account.json` with:
+Account data is stored in `~/.claude-proxy/data/account.json` with:
 - Access token
 - Refresh token
 - Organization UUID
@@ -172,7 +172,7 @@ go mod download
 go run . server --config custom.yaml
 
 # Build
-go build -o clove
+go build -o claude-proxy
 
 # Format code
 go fmt ./...
@@ -217,6 +217,6 @@ MIT
 ## Support
 
 For issues and questions:
-- GitHub Issues: [Report Issue](https://github.com/yourusername/clove/issues)
+- GitHub Issues: [Report Issue](https://github.com/yourusername/claude-proxy/issues)
 - Documentation: See `docs/mvp.md` for detailed specifications
 
