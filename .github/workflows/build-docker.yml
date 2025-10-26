@@ -61,48 +61,72 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: v${{ github.event.inputs.version }}
-          release_name: Claude Proxy v${{ github.event.inputs.version }}
+          tag: v${{ github.event.inputs.version }}
+          name: Claude Proxy v${{ github.event.inputs.version }}
+          draft: false
+          prerelease: false
+          generateReleaseNotes: true
           body: |
             # Claude Proxy v${{ github.event.inputs.version }}
 
-            ## Docker Image
+            ## 🐳 Docker Image
+
             ```bash
             docker pull phathdt379/claude-proxy:${{ github.event.inputs.version }}
-            docker run -p 4000:4000 -v ~/.claude-proxy/data:/app/data phathdt379/claude-proxy:${{ github.event.inputs.version }}
             ```
 
-            ## Configuration
-            1. Create `config.yaml` from `config.example.yaml`
-            2. Set your OAuth credentials and API key
-            3. Mount as volume: `-v $(pwd)/config.yaml:/app/config.yaml`
+            ## 🚀 Quick Start
 
-            ## Features
-            - Multi-account Claude API proxy with OAuth 2.0
-            - Automatic token refresh (hourly + on-demand)
-            - Admin dashboard for account management
-            - Load balancing across accounts
-            - Standard `/v1/messages` endpoint
-
-            ## Quick Start
+            ### Pull & Run
             ```bash
             docker run -d \
+              --name claude-proxy \
               -p 4000:4000 \
               -v ~/.claude-proxy/data:/app/data \
               -v $(pwd)/config.yaml:/app/config.yaml \
-              --name claude-proxy \
               phathdt379/claude-proxy:${{ github.event.inputs.version }}
             ```
 
-            ## Links
+            ### Check Health
+            ```bash
+            docker logs claude-proxy
+            docker exec claude-proxy wget -O - http://localhost:4000/health
+            ```
+
+            ## ⚙️ Configuration
+
+            1. Copy configuration template:
+               ```bash
+               cp config.example.yaml config.yaml
+               ```
+            2. Edit `config.yaml` with your settings:
+               - OAuth credentials
+               - API key for admin operations
+               - Server port and logging level
+            3. Mount as volume:
+               ```bash
+               -v $(pwd)/config.yaml:/app/config.yaml
+               ```
+
+            ## ✨ Features
+
+            - 🔐 **OAuth 2.0 with PKCE**: Secure multi-account authentication
+            - 📊 **Multi-Account Support**: Load balance across multiple Claude accounts
+            - 🔄 **Automatic Token Refresh**: Hourly cronjob + on-demand (60s buffer)
+            - ⚖️ **Load Balancing**: Stateless round-robin with health filtering
+            - 📡 **Claude API Proxy**: Full `/v1/messages` endpoint support
+            - 📈 **Admin Dashboard**: React-based UI for account management
+            - 💾 **JSON Persistence**: File-based storage (no database required)
+            - 🔑 **API Key Protection**: Secure proxy requests with configurable API keys
+
+            ## 📚 Documentation
+
             - [GitHub Repository](https://github.com/${{ github.repository }})
-            - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
-          draft: false
-          prerelease: false
+            - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
+            - [Docker Deployment Guide](https://github.com/${{ github.repository }}/blob/main/docs/DOCKER_DEPLOYMENT.md)
+            - [Architecture](https://github.com/${{ github.repository }}/blob/main/CLAUDE.md)
 
       - name: Build success notification
         run: |
