@@ -4,7 +4,7 @@ ifneq (,$(wildcard .env))
     export
 endif
 
-.PHONY: run build clean sqlc-generate docker-up docker-down dev dev-setup format format-go format-check test test-unit test-integration test-coverage test-watch
+.PHONY: run build clean sqlc-generate docker-up docker-down docker-build dev dev-setup format format-go format-check test test-unit test-integration test-coverage test-watch
 
 run:
 	go run .
@@ -26,6 +26,13 @@ docker-up:
 
 docker-down:
 	docker-compose down
+
+docker-build:
+	@echo "🔨 Building frontend..."
+	cd frontend && pnpm install && pnpm build
+	@echo "🐳 Building Docker image..."
+	docker build -t phathdt379/claude-proxy:latest .
+	@echo "✅ Docker build complete: phathdt379/claude-proxy:latest"
 
 deps:
 	go mod tidy
