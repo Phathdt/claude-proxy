@@ -82,6 +82,12 @@ func (c *ClaudeAPIClient) logResponse(client *req.Client, resp *req.Response) er
 		return nil
 	}
 
+	// Additional safety check - response might have nil underlying response
+	if resp.Response == nil {
+		c.logger.Warn("Underlying HTTP response is nil - request likely failed or was canceled")
+		return nil
+	}
+
 	statusCode := resp.StatusCode
 	contentType := resp.Header.Get("Content-Type")
 
