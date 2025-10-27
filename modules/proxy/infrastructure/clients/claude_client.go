@@ -76,15 +76,27 @@ func (c *ClaudeAPIClient) logRequest(client *req.Client, req *req.Request) error
 
 // logResponse logs the response from Claude API
 func (c *ClaudeAPIClient) logResponse(client *req.Client, resp *req.Response) error {
+	// Check if response is nil (can happen on request errors like timeouts)
+	if resp == nil {
+		c.logger.Warn("Response is nil in logResponse callback - likely a request error occurred")
+		return nil
+	}
+
 	statusCode := resp.StatusCode
 	contentType := resp.Header.Get("Content-Type")
 
 	fields := sctx.Fields{
 		"status_code":           statusCode,
 		"content_type":          contentType,
-		"request_method":        resp.Request.Method,
-		"request_path":          resp.Request.URL.String(),
 		"response_headers_size": len(resp.Header),
+	}
+
+	// Add request details if available
+	if resp.Request != nil {
+		fields["request_method"] = resp.Request.Method
+		if resp.Request.URL != nil {
+			fields["request_path"] = resp.Request.URL.String()
+		}
 	}
 
 	// Log response body (be careful with large responses)
@@ -96,7 +108,7 @@ func (c *ClaudeAPIClient) logResponse(client *req.Client, resp *req.Response) er
 	}
 
 	// Log request body if available (from Response.Request)
-	if len(resp.Request.Body) > 0 {
+	if resp.Request != nil && len(resp.Request.Body) > 0 {
 		if len(resp.Request.Body) < 10000 {
 			fields["request_body"] = string(resp.Request.Body)
 		} else {
