@@ -17,10 +17,10 @@ type ClaudeAPIClient struct {
 }
 
 // NewClaudeAPIClient creates a new Claude API client with req
-func NewClaudeAPIClient(baseURL string, logger sctx.Logger) *ClaudeAPIClient {
+func NewClaudeAPIClient(baseURL string, timeout time.Duration, logger sctx.Logger) *ClaudeAPIClient {
 	client := req.C().
 		SetBaseURL(baseURL).
-		SetTimeout(60*time.Second).
+		SetTimeout(timeout). // Use configurable timeout for LLM API requests
 		SetCommonRetryCount(2).
 		SetCommonRetryBackoffInterval(1*time.Second, 5*time.Second).
 		SetCommonHeaders(map[string]string{

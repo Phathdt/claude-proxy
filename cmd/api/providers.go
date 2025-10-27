@@ -101,7 +101,7 @@ func InitServiceContext(cfg *config.Config) (sctx.ServiceContext, sctx.Logger, e
 }
 
 // NewGinEngine creates a new Gin engine with middleware
-func NewGinEngine() *gin.Engine {
+func NewGinEngine(cfg *config.Config) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	engine := gin.New()
@@ -170,9 +170,9 @@ func NewGinEngine() *gin.Engine {
 		c.Next()
 	})
 
-	// Timeout middleware
+	// Timeout middleware - use configurable timeout for LLM API requests
 	engine.Use(func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), cfg.Server.RequestTimeout)
 		defer cancel()
 
 		c.Request = c.Request.WithContext(ctx)
@@ -298,7 +298,7 @@ func NewAccountRepository(cfg *config.Config, appLogger sctx.Logger) (interfaces
 // NewClaudeAPIClient creates a new Claude API client
 func NewClaudeAPIClient(cfg *config.Config, appLogger sctx.Logger) *clients.ClaudeAPIClient {
 	logger := appLogger.Withs(sctx.Fields{"component": "claude-api-client"})
-	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL, logger)
+	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL, cfg.Server.RequestTimeout, logger)
 }
 
 // NewTokenService creates a new token service

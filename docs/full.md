@@ -699,6 +699,232 @@ Self-healing account management with automatic status recovery and rate limit re
 
 ---
 
+## Go Implementation Roadmap
+
+### Features to Port from Python Version
+
+The following features exist in the Python version but are **missing** in the current Go implementation:
+
+#### ⚠️ Critical Limitation
+
+**0. Streaming Support (SSE/Server-Sent Events)**
+- **Status**: ❌ Not implemented - responses are fully buffered
+- **Impact**: High - affects user experience for long responses
+- **Current Behavior**:
+  - Backend buffers ENTIRE Claude API response in memory (`io.ReadAll`)
+  - Client receives nothing until complete response is ready
+  - Extended thinking (2-3 min) = 2-3 min of waiting with no feedback
+  - Higher memory usage for large responses
+- **Python Version**: ✅ Full SSE streaming with real-time token updates
+- **Implementation Required**:
+  ```go
+  // In proxy_handler.go - replace buffering with streaming
+  // Check Content-Type for "text/event-stream"
+  if resp.Header.Get("Content-Type") == "text/event-stream" {
+      // Stream SSE events directly to client
+      c.Stream(func(w io.Writer) bool {
+          io.Copy(w, resp.Body)
+          return false
+      })
+  } else {
+      // Existing buffer-and-send for JSON responses
+      io.ReadAll(resp.Body)
+  }
+  ```
+- **Benefit**: Real-time streaming, better UX, lower memory usage
+- **Files**: `cmd/api/handlers/proxy_handler.go`, `modules/proxy/application/services/proxy_service.go`
+- **Workaround**: Increased `request_timeout` from 30s to 5m (configurable) to handle buffered responses
+
+**📝 Timeout Configuration (Added in v0.1.1)**
+- **Config**: `server.request_timeout` (default: 5 minutes)
+- **Reason**: LLM APIs need longer timeouts for:
+  - Extended thinking mode (1-3+ minutes)
+  - Long response generation
+  - Image analysis
+  - Large context processing
+- **Environment Variable**: `SERVER__REQUEST_TIMEOUT=10m`
+- **Files**: `config/config.go:38`, `cmd/api/providers.go:175`
+
+#### 🔥 High Priority (Week 1)
+
+**1. Rate Limit Detection & Recovery**
+- **Status**: Not implemented
+- **Description**: Track when accounts hit Claude API rate limits (429 errors)
+- **Implementation**:
+  - Add `RateLimitedUntil time.Time` field to Account entity
+  - Add `AccountStatusRateLimited` status type
+  - Auto-recover accounts when rate limit expires
+  - Skip rate-limited accounts in load balancing
+- **Benefit**: Prevents wasted API calls to rate-limited accounts
+- **Files**: `modules/proxy/domain/entities/account.go`, `modules/proxy/application/services/proxy_service.go`
+
+**2. Enhanced Account Status System**
+- **Current**: Only `active/inactive` statuses
+- **Missing**: `rate_limited`, `invalid` (OAuth tokens revoked)
+- **Implementation**:
+  ```go
+  const (
+      AccountStatusActive      AccountStatus = "active"
+      AccountStatusInactive    AccountStatus = "inactive"
+      AccountStatusRateLimited AccountStatus = "rate_limited"
+      AccountStatusInvalid     AccountStatus = "invalid"
+  )
+  ```
+- **Files**: `modules/proxy/domain/entities/account.go`
+
+**3. Statistics & Health Monitoring Endpoint**
+- **Status**: Not implemented
+- **Endpoint**: `GET /api/admin/statistics`
+- **Response**:
+  ```json
+  {
+    "total_accounts": 5,
+    "active_accounts": 3,
+    "rate_limited_accounts": 1,
+    "invalid_accounts": 1,
+    "oldest_token_age_hours": 2.5,
+    "accounts_needing_refresh": 2
+  }
+  ```
+- **Benefit**: Real-time monitoring of account health
+- **Files**: `cmd/api/handlers/statistics_handler.go`, `cmd/api/server.go`
+
+#### ⚡ Important (Week 2)
+
+**4. Idle Account Detection**
+- **Status**: Not implemented
+- **Description**: Track and alert on accounts idle for > 5 hours
+- **Implementation**:
+  - Add `LastUsedAt time.Time` field to Account entity
+  - Add background task to check idle accounts
+  - Add `IsIdleTooLong(threshold time.Duration) bool` method
+- **Benefit**: Identify unused accounts and optimize token refresh
+- **Files**: `modules/proxy/domain/entities/account.go`, `modules/proxy/infrastructure/jobs/idle_checker.go`
+
+**5. Session/Request Limiting Per Account**
+- **Status**: Not implemented
+- **Description**: Limit concurrent requests per account (default: 3)
+- **Implementation**:
+  - Add `ActiveRequestCount int` field
+  - Add `MaxConcurrentRequests int` field
+  - Skip accounts at max capacity in load balancer
+- **Benefit**: Prevent account overload and improve request distribution
+- **Files**: `modules/proxy/domain/entities/account.go`, `modules/proxy/application/services/proxy_service.go`
+
+**6. Retry Logic with Exponential Backoff**
+- **Status**: Basic retry exists, needs enhancement
+- **Description**: Sophisticated retry for transient API errors
+- **Implementation**:
+  - Exponential backoff (1s, 2s, 4s, 8s...)
+  - Retry only on specific errors (429, 502, 503, 504)
+  - Max 3 retries configurable
+- **Benefit**: Improve reliability for transient failures
+- **Files**: `pkg/retry/retry.go`
+
+#### 📦 Nice to Have (Week 3)
+
+**7. Account Capability Detection**
+- **Status**: Not implemented
+- **Description**: Detect Free/Pro/Max tier from Claude API
+- **Implementation**:
+  ```go
+  type AccountCapability string
+  const (
+      CapabilityFree AccountCapability = "free"
+      CapabilityPro  AccountCapability = "pro"
+      CapabilityMax  AccountCapability = "max"
+  )
+  // Add to Account struct
+  Capabilities []AccountCapability
+  ```
+- **Benefit**: Tier-aware load balancing
+- **Files**: `modules/proxy/domain/entities/account.go`
+
+**8. Organization UUID Validation**
+- **Status**: Not implemented
+- **Description**: Periodically validate organization is still active
+- **Implementation**:
+  - Background task to check org validity
+  - Auto-deactivate accounts with disabled/deleted orgs
+- **Benefit**: Detect organization changes without manual intervention
+- **Files**: `modules/proxy/infrastructure/jobs/org_validator.go`
+
+**9. Enhanced Health Check**
+- **Status**: Basic `/health` exists, needs enhancement
+- **Current**: Returns simple status
+- **Enhancement**:
+  ```json
+  {
+    "status": "healthy|degraded|unhealthy",
+    "available_accounts": 3,
+    "rate_limited_accounts": 1,
+    "uptime_seconds": 3600
+  }
+  ```
+- **Status Logic**:
+  - `healthy`: ≥2 active accounts
+  - `degraded`: 1 active account
+  - `unhealthy`: 0 active accounts
+- **Files**: `cmd/api/handlers/health_handler.go`
+
+**10. Account Usage Metrics**
+- **Status**: Not implemented
+- **Description**: Track request counts and token usage
+- **Implementation**:
+  ```go
+  // Add to Account struct
+  TotalRequests int64
+  TotalTokensUsed int64
+  LastRequestAt time.Time
+  RequestsToday int  // Reset daily
+  ```
+- **Benefit**: Usage analytics and billing insights
+- **Files**: `modules/proxy/domain/entities/account.go`
+
+### Quick Wins (Can Implement Today)
+
+**1. Add `LastUsedAt` Tracking** (10 minutes)
+```go
+// In proxy_service.go:ProxyRequest()
+account.LastUsedAt = time.Now()
+s.accountRepo.Update(ctx, account)
+```
+
+**2. Basic Statistics Endpoint** (30 minutes)
+```go
+// cmd/api/handlers/statistics_handler.go
+func (h *StatisticsHandler) GetStatistics(c *gin.Context) {
+    accounts, _ := h.accountService.ListAccounts(c.Request.Context())
+
+    stats := map[string]interface{}{
+        "total": len(accounts),
+        "active": countActive(accounts),
+        "needing_refresh": countNeedingRefresh(accounts),
+    }
+
+    c.JSON(200, stats)
+}
+```
+
+### Implementation Status Comparison
+
+| Feature | Python Version | Go Version | Priority |
+|---------|---------------|------------|----------|
+| OAuth Authentication | ✅ | ✅ | - |
+| Token Auto-Refresh | ✅ | ✅ | - |
+| Multi-Account Load Balancing | ✅ | ✅ | - |
+| Rate Limit Detection | ✅ | ❌ | 🔥 High |
+| Account Status System | ✅ (4 states) | ⚠️ (2 states) | 🔥 High |
+| Statistics Endpoint | ✅ | ❌ | 🔥 High |
+| Idle Account Detection | ✅ | ❌ | ⚡ Important |
+| Session Limiting | ✅ | ❌ | ⚡ Important |
+| Exponential Backoff | ✅ | ⚠️ Basic | ⚡ Important |
+| Capability Detection | ✅ | ❌ | 📦 Nice to Have |
+| Org Validation | ✅ | ❌ | 📦 Nice to Have |
+| Usage Metrics | ✅ | ❌ | 📦 Nice to Have |
+
+---
+
 ## Future Roadmap Considerations
 
 Based on the current feature set, potential enhancements could include:

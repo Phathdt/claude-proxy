@@ -33,8 +33,9 @@ type LoggerConfig struct {
 }
 
 type ServerConfig struct {
-	Host string `yaml:"host" mapstructure:"host"`
-	Port int    `yaml:"port" mapstructure:"port"`
+	Host           string        `yaml:"host" mapstructure:"host"`
+	Port           int           `yaml:"port" mapstructure:"port"`
+	RequestTimeout time.Duration `yaml:"request_timeout" mapstructure:"request_timeout"`
 }
 
 // AuthConfig holds API key authentication configuration
@@ -133,6 +134,11 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 	if config.Retry.RetryDelay == 0 {
 		config.Retry.RetryDelay = 1 * time.Second
+	}
+
+	// Set default server config if not specified
+	if config.Server.RequestTimeout == 0 {
+		config.Server.RequestTimeout = 5 * time.Minute // 5 minutes for LLM API requests
 	}
 
 	return &config, nil
