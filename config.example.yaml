@@ -13,7 +13,7 @@ logger:
 
 # API key for protecting the proxy endpoints
 auth:
-  api_key: 'your-secret-api-key-here'
+  api_key: '667788'
 
 # OAuth 2.0 configuration for Claude authentication
 # Note: organization_uuid is passed as a query parameter, not in the path
@@ -23,7 +23,7 @@ auth:
 #   OAUTH_REDIRECT_URI - OAuth redirect URI for authorization flow
 #   OAUTH_SCOPE - OAuth scopes (space-separated)
 oauth:
-  client_id: 'your-claude-oauth-client-id'
+  client_id: '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
   authorize_url: 'https://claude.ai/oauth/authorize'
   token_url: 'https://console.anthropic.com/v1/oauth/token'
   redirect_uri: 'https://console.anthropic.com/oauth/code/callback'
@@ -33,11 +33,11 @@ oauth:
 # Using Claude.ai web API (compatible with OAuth tokens)
 # For public API, use: https://api.anthropic.com
 claude:
-  base_url: 'https://claude.ai/api'
+  base_url: 'https://api.anthropic.com'
 
 # Storage configuration
 storage:
-  data_folder: '~/.claude-proxy/data'
+  data_folder: '/data'
 
 # Retry configuration
 retry:
