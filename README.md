@@ -8,7 +8,8 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
 - **Multi-Account Support**: Manage and load-balance across multiple Claude accounts
 - **Automatic Token Refresh**: Dual triggers - hourly cronjob + on-demand (60-second buffer)
 - **Load Balancing**: Stateless round-robin account selection with health filtering
-- **Claude API Proxy**: Full proxy support for Claude API requests (⚠️ streaming support in progress)
+- **Claude API Proxy**: Full proxy support for Claude API requests with SSE streaming
+- **Real-time Streaming**: Server-Sent Events (SSE) support for streaming responses
 - **Configurable Timeouts**: 5-minute default timeout for extended thinking and long responses
 - **Admin Dashboard**: React-based UI with dark/light theme support for OAuth setup and account management
 - **Graceful Request Handling**: Smart context cancellation handling - no panics on user-canceled requests
@@ -124,18 +125,29 @@ curl -X POST http://localhost:4000/v1/messages \
 
 **Note:** The endpoint `/v1/messages` is compatible with the standard Claude API format, so you can drop in Claude Proxy as a replacement for `https://api.claude.ai`. Use your stored token with `Authorization: Bearer` header.
 
-## ⚠️ Streaming Limitation (Work in Progress)
+## ✨ Streaming Support
 
-**Current Status**: The proxy currently **buffers the entire response** before sending to clients.
+**Real-time SSE Streaming**: The proxy now supports Server-Sent Events (SSE) for real-time response streaming!
 
-**What this means:**
-- For short responses: No noticeable impact
-- For extended thinking (1-3 minutes): Client waits for complete response with no real-time feedback
-- For long generations: Higher memory usage and delayed first-byte response
+**How it works:**
+- Automatically detects `"stream": true` in requests
+- Streams Claude API responses in real-time using SSE
+- Provides immediate feedback for extended thinking and long responses
+- Low memory footprint - no buffering required
+- Graceful handling of client disconnections
 
-**Workaround**: Increased request timeout to 5 minutes (configurable) to handle buffered responses.
-
-**Upcoming**: Full SSE (Server-Sent Events) streaming support is being implemented for real-time response streaming.
+**Usage:**
+```bash
+curl -X POST http://localhost:4000/v1/messages \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-opus-4-20250514",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true
+  }'
+```
 
 ## API Endpoints
 

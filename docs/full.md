@@ -705,35 +705,25 @@ Self-healing account management with automatic status recovery and rate limit re
 
 The following features exist in the Python version but are **missing** in the current Go implementation:
 
-#### ⚠️ Critical Limitation
+#### ✅ Recently Implemented
 
 **0. Streaming Support (SSE/Server-Sent Events)**
-- **Status**: ❌ Not implemented - responses are fully buffered
-- **Impact**: High - affects user experience for long responses
-- **Current Behavior**:
-  - Backend buffers ENTIRE Claude API response in memory (`io.ReadAll`)
-  - Client receives nothing until complete response is ready
-  - Extended thinking (2-3 min) = 2-3 min of waiting with no feedback
-  - Higher memory usage for large responses
-- **Python Version**: ✅ Full SSE streaming with real-time token updates
-- **Implementation Required**:
-  ```go
-  // In proxy_handler.go - replace buffering with streaming
-  // Check Content-Type for "text/event-stream"
-  if resp.Header.Get("Content-Type") == "text/event-stream" {
-      // Stream SSE events directly to client
-      c.Stream(func(w io.Writer) bool {
-          io.Copy(w, resp.Body)
-          return false
-      })
-  } else {
-      // Existing buffer-and-send for JSON responses
-      io.ReadAll(resp.Body)
-  }
-  ```
-- **Benefit**: Real-time streaming, better UX, lower memory usage
-- **Files**: `cmd/api/handlers/proxy_handler.go`, `modules/proxy/application/services/proxy_service.go`
-- **Workaround**: Increased `request_timeout` from 30s to 5m (configurable) to handle buffered responses
+- **Status**: ✅ **Implemented** - Real-time SSE streaming fully supported
+- **Implementation Date**: 2025-10-27
+- **Features**:
+  - Automatic detection of `text/event-stream` content type
+  - Real-time streaming using Gin's `c.Stream()` method
+  - 4KB buffer chunks for efficient streaming
+  - Graceful handling of client disconnections
+  - Context-aware streaming (stops on timeout/cancellation)
+  - No buffering - streams directly from Claude API to client
+- **Benefits Delivered**:
+  - ✅ Real-time feedback for extended thinking (1-3+ minutes)
+  - ✅ Lower memory usage - no full response buffering
+  - ✅ Better user experience with immediate response chunks
+  - ✅ Handles long generations efficiently
+- **Files**: `cmd/api/handlers/proxy_handler.go:60-127`
+- **Usage**: Works automatically when client sends `"stream": true` in request
 
 **📝 Timeout Configuration (Added in v0.1.1)**
 - **Config**: `server.request_timeout` (default: 5 minutes)
@@ -913,6 +903,8 @@ func (h *StatisticsHandler) GetStatistics(c *gin.Context) {
 | OAuth Authentication | ✅ | ✅ | - |
 | Token Auto-Refresh | ✅ | ✅ | - |
 | Multi-Account Load Balancing | ✅ | ✅ | - |
+| **SSE Streaming** | ✅ | ✅ | **✅ Done** |
+| **Configurable Timeout** | ✅ | ✅ | **✅ Done** |
 | Rate Limit Detection | ✅ | ❌ | 🔥 High |
 | Account Status System | ✅ (4 states) | ⚠️ (2 states) | 🔥 High |
 | Statistics Endpoint | ✅ | ❌ | 🔥 High |
