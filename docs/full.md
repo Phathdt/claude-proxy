@@ -735,34 +735,35 @@ The following features exist in the Python version but are **missing** in the cu
 - **Environment Variable**: `SERVER__REQUEST_TIMEOUT=10m`
 - **Files**: `config/config.go:38`, `cmd/api/providers.go:175`
 
+**1. Enhanced Account Status System**
+- **Status**: ✅ **Implemented** - Full 4-state account management with auto-recovery
+- **Implementation Date**: 2025-10-27
+- **Features**:
+  - 4 account statuses: `active`, `inactive`, `rate_limited`, `invalid`
+  - Automatic rate limit detection (429 errors) with 1-hour recovery
+  - Invalid token detection (401/403 errors)
+  - Automatic recovery scheduler (runs hourly)
+  - Smart load balancing with health prioritization
+  - API response fields: `rate_limited_until`, `last_refresh_error`
+- **Benefits Delivered**:
+  - ✅ Automatic failover when accounts hit rate limits
+  - ✅ Self-healing accounts without manual intervention
+  - ✅ Zero downtime during rate limit periods
+  - ✅ Clear visibility of account health status
+  - ✅ Intelligent request routing to healthy accounts
+- **Files**:
+  - Domain: `modules/proxy/domain/entities/account.go`
+  - Service: `modules/proxy/application/services/account_service.go`
+  - Proxy: `modules/proxy/application/services/proxy_service.go`
+  - Scheduler: `modules/proxy/infrastructure/jobs/scheduler.go`
+  - Persistence: `modules/proxy/infrastructure/repositories/json_account_repository.go`
+  - Interface: `modules/proxy/domain/interfaces/account_service.go`
+  - DTO: `modules/proxy/application/dto/account_dto.go`
+- **Backward Compatible**: ✅ Existing JSON files migrate automatically
+
 #### 🔥 High Priority (Week 1)
 
-**1. Rate Limit Detection & Recovery**
-- **Status**: Not implemented
-- **Description**: Track when accounts hit Claude API rate limits (429 errors)
-- **Implementation**:
-  - Add `RateLimitedUntil time.Time` field to Account entity
-  - Add `AccountStatusRateLimited` status type
-  - Auto-recover accounts when rate limit expires
-  - Skip rate-limited accounts in load balancing
-- **Benefit**: Prevents wasted API calls to rate-limited accounts
-- **Files**: `modules/proxy/domain/entities/account.go`, `modules/proxy/application/services/proxy_service.go`
-
-**2. Enhanced Account Status System**
-- **Current**: Only `active/inactive` statuses
-- **Missing**: `rate_limited`, `invalid` (OAuth tokens revoked)
-- **Implementation**:
-  ```go
-  const (
-      AccountStatusActive      AccountStatus = "active"
-      AccountStatusInactive    AccountStatus = "inactive"
-      AccountStatusRateLimited AccountStatus = "rate_limited"
-      AccountStatusInvalid     AccountStatus = "invalid"
-  )
-  ```
-- **Files**: `modules/proxy/domain/entities/account.go`
-
-**3. Statistics & Health Monitoring Endpoint**
+**2. Statistics & Health Monitoring Endpoint**
 - **Status**: Not implemented
 - **Endpoint**: `GET /api/admin/statistics`
 - **Response**:
@@ -905,8 +906,9 @@ func (h *StatisticsHandler) GetStatistics(c *gin.Context) {
 | Multi-Account Load Balancing | ✅ | ✅ | - |
 | **SSE Streaming** | ✅ | ✅ | **✅ Done** |
 | **Configurable Timeout** | ✅ | ✅ | **✅ Done** |
-| Rate Limit Detection | ✅ | ❌ | 🔥 High |
-| Account Status System | ✅ (4 states) | ⚠️ (2 states) | 🔥 High |
+| **Rate Limit Detection** | ✅ | ✅ | **✅ Done** |
+| **Account Status System** | ✅ (4 states) | ✅ (4 states) | **✅ Done** |
+| **Automatic Recovery** | ✅ | ✅ | **✅ Done** |
 | Statistics Endpoint | ✅ | ❌ | 🔥 High |
 | Idle Account Detection | ✅ | ❌ | ⚡ Important |
 | Session Limiting | ✅ | ❌ | ⚡ Important |
