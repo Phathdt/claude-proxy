@@ -17,7 +17,9 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
 
 ### 1. Prerequisites
 
-- **Go 1.21+**
+- **Go 1.24** (or higher) - [Download Go](https://golang.org/dl/)
+  - Uses Go 1.24 language features for improved performance and concurrency
+  - Requires Go modules support
 - **Claude OAuth Client ID** (obtain from Anthropic)
 - **Port 4000** available (configurable)
 
@@ -350,6 +352,29 @@ cd frontend && pnpm lint:fix  # Lint/fix frontend
 - **OAuth Service**: PKCE-based token exchange and refresh
 - **JSON Persistence**: File-based account storage (no database)
 - **Admin Dashboard**: React UI for account/OAuth management
+
+## Go 1.24 Features
+
+This project leverages modern Go 1.24 features for improved performance, concurrency, and developer experience:
+
+- **Enhanced Concurrency**: Uses Go 1.24's optimized goroutine scheduling and improved `sync` primitives
+- **Better Error Handling**: Leverages Go's error wrapping and chain capabilities
+- **Generic Collections**: Uses Go generics for type-safe data handling in repositories and services
+- **Range Over Integer**: Modern syntax for simple numeric loops (e.g., `for i := range n`)
+- **Improved Standard Library**: Benefits from latest Go standard library improvements and optimizations
+- **Stronger Memory Safety**: Compiler improvements for better memory safety checks
+- **Better Performance**: Go 1.24 runtime improvements for faster request handling and token refresh operations
+
+**Version Requirements:**
+```bash
+# Check Go version
+go version
+
+# Must be Go 1.24 or higher
+# Recommended: Go 1.24.0 or latest stable
+```
+
+If you have an older Go version, [download Go 1.24+](https://golang.org/dl/).
 
 ## Security
 
