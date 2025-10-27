@@ -9,7 +9,8 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
 - **Automatic Token Refresh**: Dual triggers - hourly cronjob + on-demand (60-second buffer)
 - **Load Balancing**: Stateless round-robin account selection with health filtering
 - **Claude API Proxy**: Full proxy support for Claude API requests with streaming
-- **Admin Dashboard**: React-based UI for OAuth setup and account management
+- **Admin Dashboard**: React-based UI with dark/light theme support for OAuth setup and account management
+- **Graceful Request Handling**: Smart context cancellation handling - no panics on user-canceled requests
 - **JSON Persistence**: File-based account storage (no database required)
 - **API Key Protection**: Secure all proxy requests with configurable API keys
 
@@ -261,6 +262,32 @@ Each account contains:
 
 **⚠️ SECURITY**: Keep `~/.claude-proxy/data/` secure (0700 permissions). Files contain sensitive OAuth tokens.
 
+## Admin Dashboard
+
+The admin dashboard is a modern React application with the following features:
+
+**UI Features:**
+- **Dark/Light Theme**: Automatic theme switching with system preference detection and manual override
+- **Responsive Design**: Mobile-friendly interface using TailwindCSS v4
+- **Real-time Updates**: React Query for efficient data fetching and caching
+- **Account Management**: View all accounts, their status, and token expiration
+- **OAuth Flow**: Guided OAuth setup process with visual feedback
+- **Token Management**: Create, edit, and delete API tokens with usage tracking
+
+**Theme Support:**
+- Three modes: Light, Dark, and System (follows OS preference)
+- Persistent theme selection (stored in localStorage)
+- Optimized color contrast for readability in both modes
+- Smooth theme transitions
+
+**Tech Stack:**
+- React 19 with TypeScript
+- Vite 7 for fast builds and HMR
+- TailwindCSS v4 with shadcn/ui components
+- React Router DOM v7 for routing
+- TanStack React Query v5 for state management
+- ESLint v9 with Prettier integration
+
 ## Development
 
 **Backend:**
@@ -296,12 +323,17 @@ make build
 
 **Testing & Formatting:**
 ```bash
+# Backend
 go test ./...           # Run all tests
 go test ./modules/...   # Test specific module
 make format             # Format Go code
 make test-coverage      # Generate coverage report
 
-cd frontend && pnpm lint:fix  # Lint/fix frontend
+# Frontend
+cd frontend && pnpm lint        # Lint check
+cd frontend && pnpm lint:fix    # Lint and fix
+cd frontend && pnpm format      # Format code
+cd frontend && pnpm build       # Production build
 ```
 
 ## Architecture
@@ -376,6 +408,22 @@ go version
 
 If you have an older Go version, [download Go 1.24+](https://golang.org/dl/).
 
+## Error Handling
+
+**Graceful Request Cancellation:**
+- Smart detection of user-canceled requests (context cancellation)
+- No panic recovery logs for normal user cancellations
+- Proper HTTP status codes:
+  - `499` - Client Closed Request (user canceled)
+  - `408` - Request Timeout (deadline exceeded)
+  - `503` - Service Unavailable (actual errors)
+
+**Robust Error Recovery:**
+- Panic recovery middleware catches unexpected errors
+- AppError system for structured, HTTP-aware error handling
+- Automatic retry logic with exponential backoff
+- Detailed error logging for debugging
+
 ## Security
 
 - **API Key Authentication**: All proxy requests require valid API key
@@ -384,6 +432,7 @@ If you have an older Go version, [download Go 1.24+](https://golang.org/dl/).
 - **File Permissions**: Account data stored with restricted 0700 permissions
 - **No Token Exposure**: Tokens never logged or exposed in responses
 - **HTTPS Ready**: Configure with reverse proxy for HTTPS in production
+- **Context-Aware Request Handling**: Graceful handling of canceled and timed-out requests
 
 ## Token Refresh
 
