@@ -11,7 +11,7 @@ type CreateAccountRequest struct {
 // UpdateAccountRequest represents the request to update an account
 type UpdateAccountRequest struct {
 	Name   *string `json:"name,omitempty"`
-	Status *string `json:"status,omitempty" binding:"omitempty,oneof=active inactive"`
+	Status *string `json:"status,omitempty" binding:"omitempty,oneof=active inactive rate_limited invalid"`
 }
 
 // AccountResponse represents the account response
@@ -21,21 +21,32 @@ type AccountResponse struct {
 	OrganizationUUID string `json:"organization_uuid"`
 	ExpiresAt        int64  `json:"expires_at"`
 	Status           string `json:"status"`
+	RateLimitedUntil *int64 `json:"rate_limited_until,omitempty"` // Unix timestamp, nil if not rate limited
+	LastRefreshError string `json:"last_refresh_error,omitempty"` // Error message from last refresh attempt
 	CreatedAt        int64  `json:"created_at"`
 	UpdatedAt        int64  `json:"updated_at"`
 }
 
 // ToAccountResponse converts entity to response DTO (without sensitive tokens)
 func ToAccountResponse(account *entities.Account) *AccountResponse {
-	return &AccountResponse{
+	resp := &AccountResponse{
 		ID:               account.ID,
 		Name:             account.Name,
 		OrganizationUUID: account.OrganizationUUID,
 		ExpiresAt:        account.ExpiresAt.Unix(),
 		Status:           string(account.Status),
+		LastRefreshError: account.LastRefreshError,
 		CreatedAt:        account.CreatedAt.Unix(),
 		UpdatedAt:        account.UpdatedAt.Unix(),
 	}
+
+	// Include rate limited until if present
+	if account.RateLimitedUntil != nil {
+		timestamp := account.RateLimitedUntil.Unix()
+		resp.RateLimitedUntil = &timestamp
+	}
+
+	return resp
 }
 
 // ToAccountResponses converts entity slice to response DTO slice

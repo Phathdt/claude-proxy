@@ -77,13 +77,26 @@ func (s *Scheduler) Stop() {
 	s.logger.Info("In-memory job scheduler stopped")
 }
 
-// RefreshTokensJob refreshes tokens for all active accounts
+// RefreshTokensJob refreshes tokens for all active accounts and recovers rate-limited accounts
 func (s *Scheduler) RefreshTokensJob() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	s.logger.Debug("Starting token refresh job")
+	s.logger.Debug("Starting token refresh and recovery job")
 
+	// Step 1: Recover rate-limited accounts with expired limits
+	recoveredCount, err := s.accountSvc.RecoverRateLimitedAccounts(ctx)
+	if err != nil {
+		s.logger.Withs(sctx.Fields{
+			"error": err.Error(),
+		}).Error("Failed to recover rate limited accounts")
+	} else if recoveredCount > 0 {
+		s.logger.Withs(sctx.Fields{
+			"recovered_count": recoveredCount,
+		}).Info("Recovered rate limited accounts")
+	}
+
+	// Step 2: Refresh active accounts (existing logic)
 	accounts, err := s.accountRepo.GetActiveAccounts(ctx)
 	if err != nil {
 		s.logger.Withs(sctx.Fields{
@@ -152,5 +165,6 @@ func (s *Scheduler) RefreshTokensJob() {
 		"refreshed":      refreshedCount,
 		"failed":         failedCount,
 		"skipped":        skippedCount,
-	}).Info("Token refresh job completed")
+		"recovered":      recoveredCount,
+	}).Info("Token refresh and recovery job completed")
 }

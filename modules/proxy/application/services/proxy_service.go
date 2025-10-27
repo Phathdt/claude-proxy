@@ -109,45 +109,62 @@ func (s *ProxyService) ProxyRequest(
 	return resp, nil
 }
 
-// GetValidAccount returns a valid active account using load balancing strategy
-// Priority: accounts that don't need token refresh, then rotate through all active accounts
+// GetValidAccount returns a valid active account using enhanced load balancing
+// Priority:
+// 1. Healthy active accounts (not needing refresh)
+// 2. Active accounts that need refresh
+// 3. Recently recovered rate-limited accounts
+// Excludes: rate_limited (not expired), invalid, inactive
 func (s *ProxyService) GetValidAccount(ctx context.Context) (*entities.Account, error) {
-	accounts, err := s.accountRepo.GetActiveAccounts(ctx)
+	// Get all accounts (not just active)
+	allAccounts, err := s.accountRepo.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(accounts) == 0 {
-		return nil, fmt.Errorf("no active accounts available")
+	if len(allAccounts) == 0 {
+		return nil, fmt.Errorf("no accounts available")
 	}
 
-	// Filter accounts that don't need token refresh (healthier accounts)
+	// Filter available accounts (active or rate-limit expired)
+	var availableAccounts []*entities.Account
+	for _, acc := range allAccounts {
+		if acc.IsAvailableForProxy() {
+			availableAccounts = append(availableAccounts, acc)
+		}
+	}
+
+	if len(availableAccounts) == 0 {
+		return nil, fmt.Errorf("no available accounts (all are rate limited, invalid, or inactive)")
+	}
+
+	// Prioritize healthy accounts (active and not needing refresh)
 	var healthyAccounts []*entities.Account
-	for _, acc := range accounts {
-		if !acc.NeedsRefresh() {
+	for _, acc := range availableAccounts {
+		if acc.Status == entities.AccountStatusActive && !acc.NeedsRefresh() {
 			healthyAccounts = append(healthyAccounts, acc)
 		}
 	}
 
-	// If we have healthy accounts, select from them with round-robin
+	// Select from healthy accounts if available, otherwise use all available
 	var selectedAccounts []*entities.Account
 	if len(healthyAccounts) > 0 {
 		selectedAccounts = healthyAccounts
 	} else {
-		// Fallback to all active accounts if none are healthy
-		selectedAccounts = accounts
+		selectedAccounts = availableAccounts
 	}
 
-	// Round-robin selection using account ID hash to distribute load
-	// This ensures different requests rotate through accounts
+	// Round-robin selection
 	account := s.selectAccountRoundRobin(selectedAccounts)
 
 	s.logger.Withs(sctx.Fields{
-		"account_id":       account.ID,
-		"account_name":     account.Name,
-		"needs_refresh":    account.NeedsRefresh(),
-		"total_accounts":   len(accounts),
-		"healthy_accounts": len(healthyAccounts),
+		"account_id":         account.ID,
+		"account_name":       account.Name,
+		"account_status":     account.Status,
+		"needs_refresh":      account.NeedsRefresh(),
+		"total_accounts":     len(allAccounts),
+		"available_accounts": len(availableAccounts),
+		"healthy_accounts":   len(healthyAccounts),
 	}).Debug("Selected account for proxy request")
 
 	return account, nil
@@ -218,10 +235,10 @@ func (s *ProxyService) validateAndFixThinkingParams(bodyBytes []byte) ([]byte, e
 
 	// Log the auto-correction
 	s.logger.Withs(sctx.Fields{
-		"original_max_tokens":   maxTokens,
-		"budget_tokens":         budgetTokens,
-		"adjusted_max_tokens":   newMaxTokens,
-		"buffer_added":          buffer,
+		"original_max_tokens": maxTokens,
+		"budget_tokens":       budgetTokens,
+		"adjusted_max_tokens": newMaxTokens,
+		"buffer_added":        buffer,
 	}).Warn("Auto-corrected max_tokens for extended thinking mode - max_tokens must be greater than budget_tokens")
 
 	// Update max_tokens in the request body

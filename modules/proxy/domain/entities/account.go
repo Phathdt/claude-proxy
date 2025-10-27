@@ -12,7 +12,8 @@ type Account struct {
 	ExpiresAt        time.Time // When access token expires
 	RefreshAt        time.Time // When tokens were last refreshed
 	Status           AccountStatus
-	LastRefreshError string // Last error message from token refresh attempt
+	RateLimitedUntil *time.Time // When rate limit expires (nil if not rate limited)
+	LastRefreshError string     // Last error message from token refresh attempt
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -21,8 +22,10 @@ type Account struct {
 type AccountStatus string
 
 const (
-	AccountStatusActive   AccountStatus = "active"
-	AccountStatusInactive AccountStatus = "inactive"
+	AccountStatusActive      AccountStatus = "active"       // Healthy and available
+	AccountStatusInactive    AccountStatus = "inactive"     // Manually disabled
+	AccountStatusRateLimited AccountStatus = "rate_limited" // Temporarily rate limited
+	AccountStatusInvalid     AccountStatus = "invalid"      // Auth revoked/invalid
 )
 
 // IsActive returns true if the account is active
@@ -41,6 +44,7 @@ func (a *Account) NeedsRefresh() bool {
 }
 
 // UpdateTokens updates the access token, refresh token and expiry
+// Also clears error state and rate limit, marking account as active
 func (a *Account) UpdateTokens(accessToken, refreshToken string, expiresIn int) {
 	a.AccessToken = accessToken
 	a.RefreshToken = refreshToken
@@ -48,6 +52,8 @@ func (a *Account) UpdateTokens(accessToken, refreshToken string, expiresIn int) 
 	a.RefreshAt = time.Now()
 	a.UpdatedAt = time.Now()
 	a.Status = AccountStatusActive
+	a.RateLimitedUntil = nil // Clear rate limit
+	a.LastRefreshError = ""  // Clear error on success
 }
 
 // Deactivate marks the account as inactive
@@ -77,4 +83,59 @@ func (a *Account) Update(name string, status AccountStatus) {
 func (a *Account) UpdateRefreshError(errMsg string) {
 	a.LastRefreshError = errMsg
 	a.UpdatedAt = time.Now()
+}
+
+// IsAvailableForProxy returns true if account can be used for proxying
+func (a *Account) IsAvailableForProxy() bool {
+	switch a.Status {
+	case AccountStatusActive:
+		return true
+	case AccountStatusRateLimited:
+		// Check if rate limit has expired
+		if a.RateLimitedUntil != nil && time.Now().After(*a.RateLimitedUntil) {
+			return true // Rate limit expired, can be recovered
+		}
+		return false
+	case AccountStatusInvalid, AccountStatusInactive:
+		return false
+	default:
+		return false
+	}
+}
+
+// IsRateLimitExpired returns true if rate limit has expired
+func (a *Account) IsRateLimitExpired() bool {
+	if a.Status != AccountStatusRateLimited {
+		return false
+	}
+	if a.RateLimitedUntil == nil {
+		return true // No expiry set, consider expired
+	}
+	return time.Now().After(*a.RateLimitedUntil)
+}
+
+// MarkRateLimited marks account as rate limited until specified time
+func (a *Account) MarkRateLimited(until time.Time, errMsg string) {
+	a.Status = AccountStatusRateLimited
+	a.RateLimitedUntil = &until
+	a.LastRefreshError = errMsg
+	a.UpdatedAt = time.Now()
+}
+
+// MarkInvalid marks account as invalid (auth revoked)
+func (a *Account) MarkInvalid(errMsg string) {
+	a.Status = AccountStatusInvalid
+	a.RateLimitedUntil = nil
+	a.LastRefreshError = errMsg
+	a.UpdatedAt = time.Now()
+}
+
+// RecoverFromRateLimit marks account as active after rate limit expires
+func (a *Account) RecoverFromRateLimit() {
+	if a.Status == AccountStatusRateLimited && a.IsRateLimitExpired() {
+		a.Status = AccountStatusActive
+		a.RateLimitedUntil = nil
+		a.LastRefreshError = ""
+		a.UpdatedAt = time.Now()
+	}
 }

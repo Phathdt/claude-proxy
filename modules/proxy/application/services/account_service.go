@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"claude-proxy/modules/proxy/domain/entities"
@@ -142,9 +143,12 @@ func (s *AccountService) GetValidToken(ctx context.Context, accountID string) (s
 func (s *AccountService) refreshToken(ctx context.Context, account *entities.Account) error {
 	accessToken, refreshToken, expiresIn, err := s.refresher.RefreshAccessToken(ctx, account.RefreshToken)
 	if err != nil {
+		// Detect error type and update account status accordingly
+		s.handleRefreshError(ctx, account, err)
 		return err
 	}
 
+	// Success - clear any error state and mark as active
 	account.UpdateTokens(accessToken, refreshToken, expiresIn)
 
 	if err := s.accountRepo.Update(ctx, account); err != nil {
@@ -157,4 +161,86 @@ func (s *AccountService) refreshToken(ctx context.Context, account *entities.Acc
 	}).Info("Token refreshed successfully")
 
 	return nil
+}
+
+// handleRefreshError analyzes refresh error and updates account status
+func (s *AccountService) handleRefreshError(ctx context.Context, account *entities.Account, err error) {
+	errMsg := err.Error()
+
+	// Check for rate limit error (429 status code)
+	if strings.Contains(errMsg, "429") || strings.Contains(strings.ToLower(errMsg), "rate limit") {
+		// Rate limited - set 1 hour default recovery time
+		until := time.Now().Add(1 * time.Hour)
+
+		account.MarkRateLimited(until, errMsg)
+
+		s.logger.Withs(sctx.Fields{
+			"account_id":         account.ID,
+			"rate_limited_until": until,
+		}).Warn("Account marked as rate limited")
+
+		_ = s.accountRepo.Update(ctx, account)
+		return
+	}
+
+	// Check for invalid token error (401, 403 status codes)
+	if strings.Contains(errMsg, "401") || strings.Contains(errMsg, "403") ||
+		strings.Contains(strings.ToLower(errMsg), "unauthorized") ||
+		strings.Contains(strings.ToLower(errMsg), "invalid") {
+
+		account.MarkInvalid(errMsg)
+
+		s.logger.Withs(sctx.Fields{
+			"account_id": account.ID,
+			"error":      errMsg,
+		}).Error("Account marked as invalid - credentials revoked or expired")
+
+		_ = s.accountRepo.Update(ctx, account)
+		return
+	}
+
+	// Generic error - mark as inactive but preserve error message
+	account.UpdateRefreshError(errMsg)
+	account.Deactivate()
+
+	s.logger.Withs(sctx.Fields{
+		"account_id": account.ID,
+		"error":      errMsg,
+	}).Error("Account refresh failed with unknown error")
+
+	_ = s.accountRepo.Update(ctx, account)
+}
+
+// RecoverRateLimitedAccounts checks and recovers accounts with expired rate limits
+// This should be called periodically by the scheduler
+func (s *AccountService) RecoverRateLimitedAccounts(ctx context.Context) (int, error) {
+	accounts, err := s.accountRepo.List(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	recoveredCount := 0
+
+	for _, account := range accounts {
+		if account.Status == entities.AccountStatusRateLimited && account.IsRateLimitExpired() {
+			account.RecoverFromRateLimit()
+
+			if err := s.accountRepo.Update(ctx, account); err != nil {
+				s.logger.Withs(sctx.Fields{
+					"account_id": account.ID,
+					"error":      err.Error(),
+				}).Error("Failed to recover rate limited account")
+				continue
+			}
+
+			s.logger.Withs(sctx.Fields{
+				"account_id": account.ID,
+				"name":       account.Name,
+			}).Info("Account recovered from rate limit")
+
+			recoveredCount++
+		}
+	}
+
+	return recoveredCount, nil
 }

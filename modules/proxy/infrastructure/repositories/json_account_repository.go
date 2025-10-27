@@ -23,6 +23,8 @@ type AccountDTO struct {
 	RefreshToken     string `json:"refresh_token"`
 	ExpiresAt        int64  `json:"expires_at"`
 	Status           string `json:"status"`
+	RateLimitedUntil *int64 `json:"rate_limited_until,omitempty"` // Unix timestamp, nil if not rate limited
+	LastRefreshError string `json:"last_refresh_error,omitempty"` // Error message from last refresh attempt
 	CreatedAt        int64  `json:"created_at"`
 	UpdatedAt        int64  `json:"updated_at"`
 }
@@ -270,7 +272,7 @@ func (r *JSONAccountRepository) save() error {
 
 // accountEntityToDTO converts entity to DTO
 func accountEntityToDTO(account *entities.Account) *AccountDTO {
-	return &AccountDTO{
+	dto := &AccountDTO{
 		ID:               account.ID,
 		Name:             account.Name,
 		OrganizationUUID: account.OrganizationUUID,
@@ -278,14 +280,23 @@ func accountEntityToDTO(account *entities.Account) *AccountDTO {
 		RefreshToken:     account.RefreshToken,
 		ExpiresAt:        account.ExpiresAt.Unix(),
 		Status:           string(account.Status),
+		LastRefreshError: account.LastRefreshError,
 		CreatedAt:        account.CreatedAt.Unix(),
 		UpdatedAt:        account.UpdatedAt.Unix(),
 	}
+
+	// Convert RateLimitedUntil pointer
+	if account.RateLimitedUntil != nil {
+		timestamp := account.RateLimitedUntil.Unix()
+		dto.RateLimitedUntil = &timestamp
+	}
+
+	return dto
 }
 
 // accountDtoToEntity converts DTO to entity
 func accountDtoToEntity(dto *AccountDTO) *entities.Account {
-	return &entities.Account{
+	account := &entities.Account{
 		ID:               dto.ID,
 		Name:             dto.Name,
 		OrganizationUUID: dto.OrganizationUUID,
@@ -293,9 +304,18 @@ func accountDtoToEntity(dto *AccountDTO) *entities.Account {
 		RefreshToken:     dto.RefreshToken,
 		ExpiresAt:        time.Unix(dto.ExpiresAt, 0),
 		Status:           entities.AccountStatus(dto.Status),
+		LastRefreshError: dto.LastRefreshError,
 		CreatedAt:        time.Unix(dto.CreatedAt, 0),
 		UpdatedAt:        time.Unix(dto.UpdatedAt, 0),
 	}
+
+	// Convert RateLimitedUntil pointer
+	if dto.RateLimitedUntil != nil {
+		t := time.Unix(*dto.RateLimitedUntil, 0)
+		account.RateLimitedUntil = &t
+	}
+
+	return account
 }
 
 // generateAccountID generates a unique ID for an account

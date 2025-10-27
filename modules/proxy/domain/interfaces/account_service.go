@@ -29,4 +29,8 @@ type AccountService interface {
 
 	// GetValidToken returns a valid access token for an account, refreshing if needed
 	GetValidToken(ctx context.Context, accountID string) (string, error)
+
+	// RecoverRateLimitedAccounts checks and recovers accounts with expired rate limits
+	// Returns the number of accounts recovered
+	RecoverRateLimitedAccounts(ctx context.Context) (int, error)
 }
