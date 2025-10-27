@@ -6,8 +6,12 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
 
 - **OAuth 2.0 with PKCE**: Secure, scalable OAuth authentication with automatic token refresh
 - **Multi-Account Support**: Manage and load-balance across multiple Claude accounts
+- **Enhanced Account Status System**: 4-state account management (active, inactive, rate_limited, invalid)
+  - Automatic rate limit detection and recovery
+  - Invalid token detection with smart error handling
+  - Intelligent load balancing that prioritizes healthy accounts
 - **Automatic Token Refresh**: Dual triggers - hourly cronjob + on-demand (60-second buffer)
-- **Load Balancing**: Stateless round-robin account selection with health filtering
+- **Smart Load Balancing**: Stateless round-robin with health filtering and automatic failover
 - **Claude API Proxy**: Full proxy support for Claude API requests with SSE streaming
 - **Real-time Streaming**: Server-Sent Events (SSE) support for streaming responses
 - **Configurable Timeouts**: 5-minute default timeout for extended thinking and long responses
@@ -149,6 +153,89 @@ curl -X POST http://localhost:4000/v1/messages \
   }'
 ```
 
+## 🛡️ Enhanced Account Status System
+
+The proxy features an intelligent 4-state account management system with automatic error detection and recovery:
+
+### Account States
+
+1. **`active`** - Healthy and available for proxying requests
+2. **`inactive`** - Manually disabled by admin
+3. **`rate_limited`** - Temporarily unavailable due to Claude API rate limits
+4. **`invalid`** - Authentication credentials revoked or expired
+
+### Automatic Error Detection
+
+**Rate Limit Detection (429 Errors)**:
+- Automatically detects when Claude API returns 429 status
+- Marks account as `rate_limited` with 1-hour recovery period
+- Account excluded from load balancing until rate limit expires
+- Hourly scheduler automatically recovers expired rate-limited accounts
+
+**Invalid Token Detection (401/403 Errors)**:
+- Detects authentication errors from token refresh failures
+- Marks account as `invalid` (requires manual intervention)
+- Permanently excluded from load balancing until reactivated
+
+### Smart Load Balancing
+
+The proxy intelligently selects accounts based on health status:
+
+1. **Priority 1**: Healthy `active` accounts (not needing token refresh)
+2. **Priority 2**: `active` accounts that need token refresh
+3. **Priority 3**: Recently recovered `rate_limited` accounts
+4. **Excluded**: Current `rate_limited`, `invalid`, and `inactive` accounts
+
+**Error Messages**:
+- Clear differentiation: "no accounts available" vs "all accounts rate limited/invalid"
+- Detailed logging with account status for debugging
+
+### Automatic Recovery
+
+The scheduler runs hourly to:
+1. Check all `rate_limited` accounts for expired limits
+2. Automatically recover and mark as `active`
+3. Resume routing requests to recovered accounts
+4. Log recovery events for monitoring
+
+### API Response Example
+
+Account status is visible in the admin API:
+
+```bash
+GET /api/accounts
+```
+
+```json
+{
+  "accounts": [
+    {
+      "id": "app_123",
+      "name": "Production Account",
+      "status": "active",
+      "rate_limited_until": null,
+      "last_refresh_error": "",
+      "expires_at": 1735347600
+    },
+    {
+      "id": "app_456",
+      "name": "Backup Account",
+      "status": "rate_limited",
+      "rate_limited_until": 1735351200,
+      "last_refresh_error": "failed to refresh token: status 429: rate limit exceeded",
+      "expires_at": 1735344000
+    }
+  ]
+}
+```
+
+### Benefits
+
+- **Zero Downtime**: Automatic failover when accounts hit rate limits
+- **Self-Healing**: Accounts automatically recover without manual intervention
+- **Transparent**: Clear status visibility in admin dashboard and API
+- **Reliable**: Smart load balancing prevents routing to unhealthy accounts
+
 ## API Endpoints
 
 ### Admin Authentication
@@ -178,12 +265,18 @@ Used by admin dashboard to add accounts:
 - **`GET /api/accounts`** - List all saved accounts
   - Requires: `X-API-Key` header
   - Returns: Array of accounts with status, tokens, and expiry info
-  - Shows: account health, last refresh time, and any errors
+  - Shows: account health (`active`, `inactive`, `rate_limited`, `invalid`)
+  - Includes: `rate_limited_until` timestamp and `last_refresh_error` message
 
 - **`POST /api/accounts`** - Create new account from OAuth exchange
   - Requires: `X-API-Key` header
   - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
   - Returns: New account with tokens
+
+- **`PUT /api/accounts/{id}`** - Update account status or name
+  - Requires: `X-API-Key` header
+  - Body: `{ "name": "...", "status": "active|inactive|rate_limited|invalid" }`
+  - Allows manual status changes for recovery or maintenance
 
 - **`DELETE /api/accounts/{id}`** - Remove account
   - Requires: `X-API-Key` header
