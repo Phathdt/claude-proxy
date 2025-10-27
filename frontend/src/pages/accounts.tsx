@@ -178,7 +178,7 @@ export function AccountsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Accounts (OAuth)</h1>
+          <h1 className="text-foreground text-3xl font-bold tracking-tight">Accounts (OAuth)</h1>
           <p className="text-muted-foreground">Manage Claude OAuth accounts</p>
         </div>
         <Button onClick={() => setShowModal(true)}>
@@ -216,7 +216,7 @@ export function AccountsPage() {
                   <TableRow key={account.id}>
                     <TableCell className="font-medium">{account.name}</TableCell>
                     <TableCell>
-                      <code className="bg-muted rounded px-2 py-1 text-xs">
+                      <code className="bg-muted text-foreground rounded px-2 py-1 text-xs">
                         {account.organizationUuid}
                       </code>
                     </TableCell>
@@ -231,10 +231,10 @@ export function AccountsPage() {
                         {account.status}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-foreground text-sm">
                       {new Date(account.expiresAt * 1000).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className="text-foreground/70 text-sm">
                       {new Date(account.createdAt * 1000).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">

@@ -67,8 +67,8 @@ export function DashboardPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm font-medium">{stat.title}</p>
-                  <p className="text-card-foreground mt-2 text-3xl font-bold">
+                  <p className="text-foreground/60 text-sm font-medium">{stat.title}</p>
+                  <p className="text-foreground mt-2 text-3xl font-bold">
                     {isLoading ? '-' : stat.value}
                   </p>
                 </div>
@@ -85,7 +85,7 @@ export function DashboardPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-4">
-            <h2 className="text-card-foreground text-xl font-semibold">Recent Tokens</h2>
+            <h2 className="text-foreground text-xl font-semibold">Recent Tokens</h2>
             {isLoading ? (
               <div className="py-8 text-center">
                 <Loader2 className="text-primary mx-auto h-8 w-8 animate-spin" />
@@ -117,7 +117,7 @@ export function DashboardPage() {
                         </span>
                       </TableCell>
                       <TableCell>{token.usageCount.toLocaleString()}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell className="text-foreground/70 text-sm">
                         {token.lastUsedAt
                           ? new Date(token.lastUsedAt * 1000).toLocaleDateString()
                           : 'Never used'}

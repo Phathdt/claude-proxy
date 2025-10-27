@@ -2,6 +2,7 @@ import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Key, LogOut, Shield, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
@@ -66,6 +67,9 @@ export function AdminLayout() {
                 </div>
               </div>
             )}
+            <div className="mb-3 flex gap-2">
+              <ThemeToggle />
+            </div>
             <button
               onClick={handleLogout}
               className="text-sidebar-foreground hover:bg-sidebar-accent/50 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"

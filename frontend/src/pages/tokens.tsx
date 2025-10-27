@@ -88,12 +88,12 @@ export function TokensPage() {
                     <TableCell className="font-medium">{token.name}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <code className="bg-muted rounded px-2 py-1 text-xs">
+                        <code className="bg-muted text-foreground rounded px-2 py-1 text-xs">
                           {token.key.substring(0, 20)}...
                         </code>
                         <button
                           onClick={() => handleCopyKey(token.key, token.id)}
-                          className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1 transition-colors"
+                          className="text-foreground/60 hover:bg-muted hover:text-foreground rounded p-1 transition-colors"
                         >
                           {copiedId === token.id ? (
                             <Check className="h-4 w-4 text-green-500" />
@@ -115,7 +115,7 @@ export function TokensPage() {
                       </span>
                     </TableCell>
                     <TableCell>{token.usageCount.toLocaleString()}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className="text-foreground/70 text-sm">
                       {token.lastUsedAt
                         ? new Date(token.lastUsedAt * 1000).toLocaleString()
                         : 'Never'}
@@ -124,14 +124,14 @@ export function TokensPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleEdit(token)}
-                          className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1 transition-colors"
+                          className="text-foreground/60 hover:bg-muted hover:text-foreground rounded p-1 transition-colors"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(token.id)}
                           disabled={deleteMutation.isPending}
-                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded p-1 transition-colors"
+                          className="text-foreground/60 hover:bg-destructive/10 hover:text-destructive rounded p-1 transition-colors"
                         >
                           {deleteMutation.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

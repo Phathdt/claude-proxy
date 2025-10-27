@@ -92,7 +92,7 @@ const FormLabel = React.forwardRef<
     <LabelPrimitive.Root
       ref={ref}
       className={cn(
-        'text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+        'text-foreground text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
         error && 'text-destructive',
         className
       )}
@@ -131,7 +131,7 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn('text-muted-foreground text-sm', className)}
+      className={cn('text-foreground/70 text-sm', className)}
       {...props}
     />
   )

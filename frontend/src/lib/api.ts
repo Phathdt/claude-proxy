@@ -5,7 +5,8 @@ import { convertKeysToSnake, convertKeysToCamel } from './case-converter'
 // API base URL
 // In development: use VITE_API_URL env var (defaults to http://localhost:4000 via Vite proxy)
 // In production: use relative URL '' to call same domain automatically
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '')
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '')
 
 // Axios instance with default config
 const apiClient = axios.create({

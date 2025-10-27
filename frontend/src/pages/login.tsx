@@ -48,7 +48,7 @@ export function LoginPage() {
         </div>
 
         <div className="border-border bg-card rounded-lg border p-8 shadow-lg">
-          <h2 className="text-card-foreground mb-6 text-2xl font-semibold">Admin Sign In</h2>
+          <h2 className="text-foreground mb-6 text-2xl font-semibold">Admin Sign In</h2>
 
           {form.formState.errors.root && (
             <div className="bg-destructive/10 text-destructive mb-4 rounded-md p-3 text-sm">
@@ -66,7 +66,7 @@ export function LoginPage() {
                     <FormLabel>API Key</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Key className="text-muted-foreground absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
+                        <Key className="text-foreground/60 absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
                         <input
                           type="password"
                           placeholder="Enter your API key"

@@ -8,6 +8,7 @@ import { AccountsPage } from './pages/accounts'
 import { AdminLayout } from './components/layout/admin-layout'
 import { useAuth } from './hooks/useAuth'
 import { Loader2 } from 'lucide-react'
+import { ThemeProvider } from './hooks/useTheme'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,28 +44,30 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute>
-                <AdminLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="tokens" element={<TokensPage />} />
-            <Route path="accounts" element={<AccountsPage />} />
-          </Route>
-          <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
-        </Routes>
-      </BrowserRouter>
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="tokens" element={<TokensPage />} />
+              <Route path="accounts" element={<AccountsPage />} />
+            </Route>
+            <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
 
