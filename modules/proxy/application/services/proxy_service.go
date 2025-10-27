@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,6 +72,14 @@ func (s *ProxyService) ProxyRequest(
 		bodyBytes, err = io.ReadAll(req.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read request body: %w", err)
+		}
+	}
+
+	// Validate and fix extended thinking parameters if needed
+	if len(bodyBytes) > 0 {
+		bodyBytes, err = s.validateAndFixThinkingParams(bodyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate request parameters: %w", err)
 		}
 	}
 
@@ -158,4 +167,71 @@ func (s *ProxyService) selectAccountRoundRobin(accounts []*entities.Account) *en
 	// This provides round-robin behavior without needing to maintain state
 	index := int(time.Now().UnixNano()) % len(accounts)
 	return accounts[index]
+}
+
+// validateAndFixThinkingParams validates and automatically fixes extended thinking parameters
+// If max_tokens <= thinking.budget_tokens, it adjusts max_tokens to be budget_tokens + buffer
+func (s *ProxyService) validateAndFixThinkingParams(bodyBytes []byte) ([]byte, error) {
+	// Try to parse as JSON
+	var body map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+		// Not JSON or invalid - let Claude API handle it
+		return bodyBytes, nil
+	}
+
+	// Check if thinking mode is enabled
+	thinking, hasThinking := body["thinking"].(map[string]interface{})
+	if !hasThinking {
+		// No thinking configuration - pass through
+		return bodyBytes, nil
+	}
+
+	// Extract thinking.budget_tokens
+	budgetTokensFloat, hasBudget := thinking["budget_tokens"].(float64)
+	if !hasBudget {
+		// No budget_tokens specified - pass through
+		return bodyBytes, nil
+	}
+	budgetTokens := int(budgetTokensFloat)
+
+	// Extract max_tokens
+	maxTokensFloat, hasMaxTokens := body["max_tokens"].(float64)
+	if !hasMaxTokens {
+		// No max_tokens specified - pass through
+		return bodyBytes, nil
+	}
+	maxTokens := int(maxTokensFloat)
+
+	// Check if max_tokens > budget_tokens (Claude API requirement)
+	if maxTokens > budgetTokens {
+		// Valid configuration - pass through
+		return bodyBytes, nil
+	}
+
+	// Invalid configuration detected - auto-fix by increasing max_tokens
+	// Add reasonable buffer (10% of budget_tokens or minimum 1024 tokens)
+	buffer := budgetTokens / 10
+	if buffer < 1024 {
+		buffer = 1024
+	}
+	newMaxTokens := budgetTokens + buffer
+
+	// Log the auto-correction
+	s.logger.Withs(sctx.Fields{
+		"original_max_tokens":   maxTokens,
+		"budget_tokens":         budgetTokens,
+		"adjusted_max_tokens":   newMaxTokens,
+		"buffer_added":          buffer,
+	}).Warn("Auto-corrected max_tokens for extended thinking mode - max_tokens must be greater than budget_tokens")
+
+	// Update max_tokens in the request body
+	body["max_tokens"] = newMaxTokens
+
+	// Re-serialize to JSON
+	modifiedBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified request body: %w", err)
+	}
+
+	return modifiedBody, nil
 }
