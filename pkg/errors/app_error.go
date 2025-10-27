@@ -132,3 +132,12 @@ func NewInternalServerError(details string) AppError {
 		HttpStatus: http.StatusInternalServerError,
 	}
 }
+
+func NewRequestTimeoutError(details string) AppError {
+	return &BaseAppError{
+		Code:       "REQUEST_TIMEOUT",
+		Msg:        "Request timeout",
+		Detail:     details,
+		HttpStatus: http.StatusRequestTimeout,
+	}
+}
