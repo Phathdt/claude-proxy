@@ -94,7 +94,8 @@ API Key: your-configured-api-key
 **Admin Dashboard Features:**
 - View all saved accounts
 - See token expiration status
-- Monitor account health (active/inactive)
+- Monitor account health (active/inactive/rate_limited/invalid)
+- Real-time statistics dashboard with system health monitoring
 - View last refresh error (if any)
 - Manual account management
 - Add multiple accounts and switch between them
@@ -295,6 +296,32 @@ Used by admin dashboard to add accounts:
   - Auto-refreshes token if within 60 seconds of expiry
   - Returns: Claude API response in standard format (streaming or JSON)
 
+### Admin & Monitoring
+
+- **`GET /api/admin/statistics`** - Get system statistics and account health metrics
+  - Requires: `X-API-Key` header (admin API key)
+  - Returns: Real-time statistics including:
+    - Account counts by status (total, active, inactive, rate_limited, invalid)
+    - Token health metrics (accounts needing refresh, oldest token age)
+    - System health status (`healthy`, `degraded`, `unhealthy`)
+  - Response example:
+    ```json
+    {
+      "total_accounts": 5,
+      "active_accounts": 3,
+      "inactive_accounts": 1,
+      "rate_limited_accounts": 1,
+      "invalid_accounts": 0,
+      "accounts_needing_refresh": 2,
+      "oldest_token_age_hours": 2.5,
+      "system_health": "healthy"
+    }
+    ```
+  - System health logic:
+    - `healthy`: ≥2 active accounts
+    - `degraded`: 1 active account
+    - `unhealthy`: 0 active accounts
+
 ### Health & Status
 
 - **`GET /health`** - Health check endpoint
@@ -393,6 +420,11 @@ The admin dashboard is a modern React application with the following features:
 - **Dark/Light Theme**: Automatic theme switching with system preference detection and manual override
 - **Responsive Design**: Mobile-friendly interface using TailwindCSS v4
 - **Real-time Updates**: React Query for efficient data fetching and caching
+- **Statistics Dashboard**: Real-time monitoring with:
+  - System health indicator (healthy/degraded/unhealthy)
+  - Account counts by status with color-coded cards
+  - Token health metrics and auto-refresh tracking
+  - 30-second auto-refresh for live data
 - **Account Management**: View all accounts, their status, and token expiration
 - **OAuth Flow**: Guided OAuth setup process with visual feedback
 - **Token Management**: Create, edit, and delete API tokens with usage tracking

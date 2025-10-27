@@ -244,3 +244,75 @@ func (s *AccountService) RecoverRateLimitedAccounts(ctx context.Context) (int, e
 
 	return recoveredCount, nil
 }
+
+// GetStatistics returns system statistics including account counts and health metrics
+func (s *AccountService) GetStatistics(ctx context.Context) (map[string]interface{}, error) {
+	accounts, err := s.accountRepo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize counters
+	var (
+		activeCount       = 0
+		inactiveCount     = 0
+		rateLimitedCount  = 0
+		invalidCount      = 0
+		needingRefresh    = 0
+		oldestTokenAge    = 0.0
+	)
+
+	now := time.Now()
+
+	// Calculate statistics
+	for _, account := range accounts {
+		// Count by status
+		switch account.Status {
+		case entities.AccountStatusActive:
+			activeCount++
+		case entities.AccountStatusInactive:
+			inactiveCount++
+		case entities.AccountStatusRateLimited:
+			rateLimitedCount++
+		case entities.AccountStatusInvalid:
+			invalidCount++
+		}
+
+		// Count accounts needing refresh
+		if account.NeedsRefresh() {
+			needingRefresh++
+		}
+
+		// Calculate oldest token age
+		if !account.RefreshAt.IsZero() {
+			ageHours := now.Sub(account.RefreshAt).Hours()
+			if ageHours > oldestTokenAge {
+				oldestTokenAge = ageHours
+			}
+		}
+	}
+
+	// Determine system health based on active account count
+	var systemHealth string
+	switch {
+	case activeCount >= 2:
+		systemHealth = "healthy"
+	case activeCount == 1:
+		systemHealth = "degraded"
+	default:
+		systemHealth = "unhealthy"
+	}
+
+	statistics := map[string]interface{}{
+		"total_accounts":           len(accounts),
+		"active_accounts":          activeCount,
+		"inactive_accounts":        inactiveCount,
+		"rate_limited_accounts":    rateLimitedCount,
+		"invalid_accounts":         invalidCount,
+		"accounts_needing_refresh": needingRefresh,
+		"oldest_token_age_hours":   oldestTokenAge,
+		"system_health":            systemHealth,
+	}
+
+	return statistics, nil
+}

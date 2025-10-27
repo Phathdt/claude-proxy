@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { LoginPage } from './pages/login'
 import { DashboardPage } from './pages/dashboard'
+import { StatisticsPage } from './pages/statistics'
 import { TokensPage } from './pages/tokens'
 import { AccountsPage } from './pages/accounts'
 import { AdminLayout } from './components/layout/admin-layout'
@@ -59,6 +60,7 @@ function App() {
             >
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="statistics" element={<StatisticsPage />} />
               <Route path="tokens" element={<TokensPage />} />
               <Route path="accounts" element={<AccountsPage />} />
             </Route>

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { Token, CreateTokenDto, UpdateTokenDto } from '@/types/token'
+import type { Statistics } from '@/types/statistics'
 import { convertKeysToSnake, convertKeysToCamel } from './case-converter'
 
 // API base URL
@@ -256,5 +257,14 @@ export const accountsApi = {
   // Delete account
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/accounts/${id}`)
+  },
+}
+
+// Statistics API (admin statistics)
+export const statisticsApi = {
+  // Get system statistics
+  getStatistics: async (): Promise<Statistics> => {
+    const response = await apiClient.get('/api/admin/statistics')
+    return response.data
   },
 }

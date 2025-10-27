@@ -33,4 +33,7 @@ type AccountService interface {
 	// RecoverRateLimitedAccounts checks and recovers accounts with expired rate limits
 	// Returns the number of accounts recovered
 	RecoverRateLimitedAccounts(ctx context.Context) (int, error)
+
+	// GetStatistics returns system statistics including account counts and health metrics
+	GetStatistics(ctx context.Context) (map[string]interface{}, error)
 }

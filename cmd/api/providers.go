@@ -54,6 +54,7 @@ var CloveProviders = fx.Options(
 		NewAuthHandler,
 		NewAccountHandler,
 		NewOAuthHandler,
+		NewStatisticsHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -362,6 +363,15 @@ func NewOAuthHandler(
 	cfg *config.Config,
 ) *handlers.OAuthHandler {
 	return handlers.NewOAuthHandler(oauthService, accountRepo, accountSvc, cfg.Claude.BaseURL)
+}
+
+// NewStatisticsHandler creates a new statistics handler
+func NewStatisticsHandler(
+	accountService interfaces.AccountService,
+	appLogger sctx.Logger,
+) *handlers.StatisticsHandler {
+	logger := appLogger.Withs(sctx.Fields{"component": "statistics-handler"})
+	return handlers.NewStatisticsHandler(accountService, logger)
 }
 
 // NewTokenRefreshScheduler creates a new token refresh scheduler

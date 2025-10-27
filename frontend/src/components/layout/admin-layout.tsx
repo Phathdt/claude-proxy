@@ -1,11 +1,12 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Key, LogOut, Shield, User } from 'lucide-react'
+import { LayoutDashboard, Key, LogOut, Shield, User, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+  { name: 'Statistics', href: '/admin/statistics', icon: BarChart3 },
   { name: 'Accounts', href: '/admin/accounts', icon: Shield },
   { name: 'Tokens', href: '/admin/tokens', icon: Key },
 ]
