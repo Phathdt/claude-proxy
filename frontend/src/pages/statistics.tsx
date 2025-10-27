@@ -130,14 +130,8 @@ export function StatisticsPage() {
           <div className="text-muted-foreground text-sm">
             Last updated: <span className="font-medium">{lastUpdated}</span>
           </div>
-          <Button
-            onClick={handleRefresh}
-            disabled={isLoading}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <Button onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -146,8 +140,8 @@ export function StatisticsPage() {
       {/* System Health Card */}
       <Card className="border-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
+          <CardTitle className="text-foreground flex items-center gap-2 text-xl font-bold">
+            <Activity className="h-6 w-6" />
             System Health
           </CardTitle>
         </CardHeader>
@@ -162,7 +156,9 @@ export function StatisticsPage() {
                 <healthConfig.icon className={`h-12 w-12 ${healthConfig.color}`} />
               </div>
               <div>
-                <p className="text-muted-foreground mb-1 text-sm font-medium">Current Status</p>
+                <p className="text-foreground/70 mb-1 text-sm font-medium uppercase tracking-wide">
+                  Current Status
+                </p>
                 <p className={`text-4xl font-bold ${healthConfig.color}`}>{healthConfig.label}</p>
               </div>
             </div>
