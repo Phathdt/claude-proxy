@@ -34,7 +34,7 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/claude-proxy.git
+git clone https://github.com/phathdt379/claude-proxy.git
 cd claude-proxy
 
 # Copy configuration template
@@ -76,6 +76,7 @@ http://localhost:4000
 **Step 2: Authenticate with Admin API Key**
 
 Enter your configured admin API key (from `config.yaml` `auth.api_key` field):
+
 ```
 API Key: your-configured-api-key
 ```
@@ -92,6 +93,7 @@ API Key: your-configured-api-key
 ✅ Account is now saved! Tokens auto-refresh every hour + on-demand (60s before expiry).
 
 **Admin Dashboard Features:**
+
 - View all saved accounts
 - See token expiration status
 - Monitor account health (active/inactive/rate_limited/invalid)
@@ -103,6 +105,7 @@ API Key: your-configured-api-key
 ### 5. Use the Proxy
 
 Send requests to `/v1/messages` with `Authorization: Bearer <token>` header. The proxy automatically:
+
 - Selects a healthy account via load balancing
 - Refreshes tokens if needed (60-second buffer)
 - Forwards requests to Claude API
@@ -128,12 +131,14 @@ The proxy features an intelligent 4-state account management system with automat
 ### Automatic Error Detection
 
 **Rate Limit Detection (429 Errors)**:
+
 - Automatically detects when Claude API returns 429 status
 - Marks account as `rate_limited` with 1-hour recovery period
 - Account excluded from load balancing until rate limit expires
 - Hourly scheduler automatically recovers expired rate-limited accounts
 
 **Invalid Token Detection (401/403 Errors)**:
+
 - Detects authentication errors from token refresh failures
 - Marks account as `invalid` (requires manual intervention)
 - Permanently excluded from load balancing until reactivated
@@ -148,6 +153,7 @@ The proxy intelligently selects accounts based on health status:
 4. **Excluded**: Current `rate_limited`, `invalid`, and `inactive` accounts
 
 **Error Messages**:
+
 - Clear differentiation: "no accounts available" vs "all accounts rate limited/invalid"
 - Detailed logging with account status for debugging
 
@@ -188,52 +194,12 @@ All admin endpoints require `X-API-Key` header with your configured admin API ke
 
 - **`GET /health`** - Server status (no auth required)
 
-## Configuration
-
-See `config.example.yaml` for template. Key sections:
-
-```yaml
-server:
-  host: "0.0.0.0"
-  port: 4000
-  # Request timeout for LLM API requests (default: 5m)
-  # Recommended: 5m for extended thinking, 10m for very long tasks
-  request_timeout: 5m
-
-oauth:
-  client_id: "your-claude-oauth-client-id"
-  authorize_url: "https://claude.ai/oauth/authorize"
-  token_url: "https://api.claude.ai/oauth/token"
-  redirect_uri: "http://localhost:4000/oauth/callback"
-  scope: "user:profile user:inference"
-
-claude:
-  base_url: "https://api.claude.ai"
-
-storage:
-  data_folder: "~/.claude-proxy/data"
-
-auth:
-  api_key: "your-secret-api-key"
-
-logger:
-  level: "info"
-  format: "text"
-
-retry:
-  max_retries: 3
-  retry_delay: "1s"
-```
-
 ## Environment Variables
 
 Override YAML config with uppercase env vars using `__` for nesting:
 
 ```bash
-SERVER__PORT=8080
-OAUTH__CLIENT_ID=your-client-id
 AUTH__API_KEY=your-secret-key
-STORAGE__DATA_FOLDER=~/.claude-proxy/data
 LOGGER__LEVEL=debug
 ```
 
@@ -246,6 +212,7 @@ Account credentials stored in `~/.claude-proxy/data/` as JSON files.
 ## Admin Dashboard
 
 Modern React application with:
+
 - Dark/Light theme support
 - Real-time statistics with 30s auto-refresh
 - Account management with OAuth flow
@@ -257,6 +224,7 @@ Modern React application with:
 ## Development
 
 **Backend:**
+
 ```bash
 go run . server
 # or
@@ -264,47 +232,21 @@ make be
 ```
 
 **Frontend:**
+
 ```bash
 cd frontend && pnpm dev
-# or
-make fe
-```
-
-**Full Stack** (two terminals):
-```bash
-# Terminal 1
-make be
-
-# Terminal 2
-make fe
 ```
 
 **Build Production Binary:**
+
 ```bash
-cd frontend && pnpm build  # Build React
-go build -o bin/claude-proxy  # Embed frontend + build Go
-# or
 make build
-```
-
-**Testing & Formatting:**
-```bash
-# Backend
-go test ./...           # Run all tests
-go test ./modules/...   # Test specific module
-make format             # Format Go code
-make test-coverage      # Generate coverage report
-
-# Frontend
-cd frontend && pnpm lint        # Lint check
-cd frontend && pnpm lint:fix    # Lint and fix
-cd frontend && pnpm format      # Format code
-cd frontend && pnpm build       # Production build
 ```
 
 ## Architecture
 
 **Key Components:**
+
 - **Load Balancer**: Round-robin with health-aware account selection
 - **Token Refresh**: Hourly scheduler + on-demand (60s buffer)
 - **OAuth Service**: PKCE-based token exchange and refresh
@@ -313,23 +255,13 @@ cd frontend && pnpm build       # Production build
 
 **Request Flow**: Client → Load Balancer → Token Check → OAuth Refresh (if needed) → Claude API
 
-## Requirements
-
-- **Go 1.24+** - [Download](https://golang.org/dl/)
-- Uses modern Go features: generics, enhanced concurrency, improved error handling
-
 ## Roadmap
 
-**Feature Parity**: 9/12 (75% complete) | See [detailed comparison](docs/full.md#implementation-status-comparison)
+**Feature Parity**: 9/12 (75% complete) with Python version
 
-**✅ Completed**: OAuth 2.0, Token Auto-Refresh, Multi-Account Load Balancing, SSE Streaming, Rate Limit Detection, 4-State Account System, Automatic Recovery, Statistics & Health Monitoring
+**Next Up**: Idle Account Detection, Session Limiting, Enhanced Exponential Backoff
 
-**Next Up**:
-- Idle Account Detection (2-3h) - Auto-deactivate unused accounts
-- Session Limiting (2-3h) - Prevent concurrent usage abuse
-- Enhanced Exponential Backoff (1-2h) - Smarter retry logic with jitter
-
-**Nice to Have**: Capability Detection, Organization Validation, Usage Metrics, Redis Session Storage, Prometheus/Grafana Integration
+See [ROADMAP.md](ROADMAP.md) for detailed feature comparison, implementation plans, and future enhancements.
 
 ## License
 
@@ -338,6 +270,7 @@ MIT
 ## Contributing
 
 Contributions welcome! Please:
+
 1. Follow existing code patterns (DDD, dependency injection)
 2. Add tests for new features
 3. Update documentation
@@ -346,6 +279,6 @@ Contributions welcome! Please:
 ## Support
 
 For issues and questions:
-- **GitHub Issues**: [Report Issue](https://github.com/yourusername/claude-proxy/issues)
-- **Documentation**: See `CLAUDE.md` for architecture and `docs/` for guides
 
+- **GitHub Issues**: [Report Issue](https://github.com/phathdt379/claude-proxy/issues)
+- **Documentation**: See `CLAUDE.md` for architecture and `docs/` for guides
