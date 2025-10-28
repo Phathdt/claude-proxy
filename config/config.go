@@ -17,6 +17,7 @@ type Config struct {
 	Claude   ClaudeConfig   `yaml:"claude"   mapstructure:"claude"`
 	Storage  StorageConfig  `yaml:"storage"  mapstructure:"storage"`
 	Retry    RetryConfig    `yaml:"retry"    mapstructure:"retry"`
+	Session  SessionConfig  `yaml:"session"  mapstructure:"session"`
 	Telegram TelegramConfig `yaml:"telegram" mapstructure:"telegram"`
 }
 
@@ -66,6 +67,15 @@ type StorageConfig struct {
 type RetryConfig struct {
 	MaxRetries int           `yaml:"max_retries" mapstructure:"max_retries"`
 	RetryDelay time.Duration `yaml:"retry_delay" mapstructure:"retry_delay"`
+}
+
+// SessionConfig holds session limiting configuration (in-memory storage)
+type SessionConfig struct {
+	Enabled         bool          `yaml:"enabled"          mapstructure:"enabled"`
+	MaxConcurrent   int           `yaml:"max_concurrent"   mapstructure:"max_concurrent"`
+	SessionTTL      time.Duration `yaml:"session_ttl"      mapstructure:"session_ttl"`
+	CleanupEnabled  bool          `yaml:"cleanup_enabled"  mapstructure:"cleanup_enabled"`
+	CleanupInterval time.Duration `yaml:"cleanup_interval" mapstructure:"cleanup_interval"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {
@@ -139,6 +149,17 @@ func LoadConfig(configPath string) (*Config, error) {
 	// Set default server config if not specified
 	if config.Server.RequestTimeout == 0 {
 		config.Server.RequestTimeout = 5 * time.Minute // 5 minutes for LLM API requests
+	}
+
+	// Set default session config if not specified
+	if config.Session.MaxConcurrent == 0 {
+		config.Session.MaxConcurrent = 3
+	}
+	if config.Session.SessionTTL == 0 {
+		config.Session.SessionTTL = 5 * time.Minute
+	}
+	if config.Session.CleanupInterval == 0 {
+		config.Session.CleanupInterval = 1 * time.Minute
 	}
 
 	return &config, nil

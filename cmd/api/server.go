@@ -34,6 +34,7 @@ func StartAPIServer(
 	accountHandler *handlers.AccountHandler,
 	oauthHandler *handlers.OAuthHandler,
 	statisticsHandler *handlers.StatisticsHandler,
+	sessionHandler *handlers.SessionHandler,
 	tokenService interfaces.TokenService,
 ) {
 	// Health check (public)
@@ -94,6 +95,8 @@ func StartAPIServer(
 			accounts.GET("/:id", accountHandler.GetAccount)
 			accounts.PUT("/:id", accountHandler.UpdateAccount)
 			accounts.DELETE("/:id", accountHandler.DeleteAccount)
+			accounts.GET("/:id/sessions", sessionHandler.ListAccountSessions)
+			accounts.DELETE("/:id/sessions", sessionHandler.RevokeAccountSessions)
 		}
 
 		// Admin routes (protected with API key)
@@ -101,6 +104,14 @@ func StartAPIServer(
 		admin.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
 		{
 			admin.GET("/statistics", statisticsHandler.GetStatistics)
+			admin.GET("/sessions", sessionHandler.ListAllSessions)
+		}
+
+		// Session routes (protected with API key)
+		sessions := api.Group("/sessions")
+		sessions.Use(middleware.APIKeyAuth(cfg.Auth.APIKey))
+		{
+			sessions.DELETE("/:id", sessionHandler.RevokeSession)
 		}
 	}
 
@@ -171,10 +182,15 @@ func StartAPIServer(
 			appLogger.Info("    PUT    /api/tokens/:id - Update token")
 			appLogger.Info("    DELETE /api/tokens/:id - Delete token")
 			appLogger.Info("  Account Management (requires API key):")
-			appLogger.Info("    GET    /api/accounts    - List all accounts")
-			appLogger.Info("    GET    /api/accounts/:id - Get account by ID")
-			appLogger.Info("    PUT    /api/accounts/:id - Update account")
-			appLogger.Info("    DELETE /api/accounts/:id - Delete account")
+			appLogger.Info("    GET    /api/accounts         - List all accounts")
+			appLogger.Info("    GET    /api/accounts/:id     - Get account by ID")
+			appLogger.Info("    PUT    /api/accounts/:id     - Update account")
+			appLogger.Info("    DELETE /api/accounts/:id     - Delete account")
+			appLogger.Info("    GET    /api/accounts/:id/sessions - List account sessions")
+			appLogger.Info("    DELETE /api/accounts/:id/sessions - Revoke all account sessions")
+			appLogger.Info("  Session Management (requires API key):")
+			appLogger.Info("    GET    /api/admin/sessions  - List all sessions")
+			appLogger.Info("    DELETE /api/sessions/:id    - Revoke session by ID")
 
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

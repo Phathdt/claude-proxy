@@ -20,6 +20,7 @@ type ProxyService struct {
 	accountRepo  interfaces.AccountRepository
 	accountSvc   interfaces.AccountService
 	claudeClient *clients.ClaudeAPIClient
+	sessionSvc   interfaces.SessionService
 	logger       sctx.Logger
 }
 
@@ -28,12 +29,14 @@ func NewProxyService(
 	accountRepo interfaces.AccountRepository,
 	accountSvc interfaces.AccountService,
 	claudeClient *clients.ClaudeAPIClient,
+	sessionSvc interfaces.SessionService,
 	logger sctx.Logger,
 ) interfaces.ProxyService {
 	return &ProxyService{
 		accountRepo:  accountRepo,
 		accountSvc:   accountSvc,
 		claudeClient: claudeClient,
+		sessionSvc:   sessionSvc,
 		logger:       logger,
 	}
 }
@@ -50,12 +53,42 @@ func (s *ProxyService) ProxyRequest(
 		return nil, err
 	}
 
+	// Create session and check limits
+	session, err := s.sessionSvc.CreateSession(ctx, account.ID, token.ID, req)
+	if err != nil {
+		// If session limit exceeded, return error
+		s.logger.Withs(sctx.Fields{
+			"error":      err.Error(),
+			"account_id": account.ID,
+			"token_id":   token.ID,
+		}).Warn("Session limit exceeded")
+		return nil, err
+	}
+
+	// Defer session refresh to extend TTL
+	if session != nil {
+		defer func() {
+			if refreshErr := s.sessionSvc.RefreshSession(ctx, session.ID); refreshErr != nil {
+				s.logger.Withs(sctx.Fields{
+					"error":      refreshErr.Error(),
+					"session_id": session.ID,
+				}).Debug("Failed to refresh session")
+			}
+		}()
+	}
+
+	sessionID := ""
+	if session != nil {
+		sessionID = session.ID
+	}
+
 	s.logger.Withs(sctx.Fields{
 		"token_id":     token.ID,
 		"token_name":   token.Name,
 		"account_id":   account.ID,
 		"account_name": account.Name,
 		"org_uuid":     account.OrganizationUUID,
+		"session_id":   sessionID,
 		"method":       req.Method,
 		"path":         req.URL.Path,
 	}).Info("Proxying request to Claude API")

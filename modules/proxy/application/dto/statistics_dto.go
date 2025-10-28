@@ -12,11 +12,11 @@ const (
 // StatisticsResponse represents the system statistics response
 type StatisticsResponse struct {
 	// Account counts by status
-	TotalAccounts        int `json:"total_accounts"`
-	ActiveAccounts       int `json:"active_accounts"`
-	InactiveAccounts     int `json:"inactive_accounts"`
-	RateLimitedAccounts  int `json:"rate_limited_accounts"`
-	InvalidAccounts      int `json:"invalid_accounts"`
+	TotalAccounts       int `json:"total_accounts"`
+	ActiveAccounts      int `json:"active_accounts"`
+	InactiveAccounts    int `json:"inactive_accounts"`
+	RateLimitedAccounts int `json:"rate_limited_accounts"`
+	InvalidAccounts     int `json:"invalid_accounts"`
 
 	// Token health metrics
 	AccountsNeedingRefresh int     `json:"accounts_needing_refresh"`

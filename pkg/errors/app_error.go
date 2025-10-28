@@ -1,6 +1,9 @@
 package errors
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 // AppError represents application-level errors with HTTP context
 type AppError interface {
@@ -139,5 +142,18 @@ func NewRequestTimeoutError(details string) AppError {
 		Msg:        "Request timeout",
 		Detail:     details,
 		HttpStatus: http.StatusRequestTimeout,
+	}
+}
+
+func NewRateLimitError(message string, details map[string]interface{}) AppError {
+	detailStr := ""
+	for k, v := range details {
+		detailStr += fmt.Sprintf("%s: %v, ", k, v)
+	}
+	return &BaseAppError{
+		Code:       "RATE_LIMIT_EXCEEDED",
+		Msg:        message,
+		Detail:     detailStr,
+		HttpStatus: http.StatusTooManyRequests,
 	}
 }

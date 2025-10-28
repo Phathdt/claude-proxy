@@ -40,14 +40,17 @@ var CloveProviders = fx.Options(
 		// Infrastructure - Repositories
 		NewTokenRepository,
 		NewAccountRepository,
+		NewSessionRepository,
 		// Infrastructure - Clients
 		NewClaudeAPIClient,
 		// Application - Services
 		NewTokenService,
 		NewAccountService,
+		NewSessionService,
 		NewProxyService,
 		// Infrastructure - Jobs
 		NewTokenRefreshScheduler,
+		NewSessionCleanupScheduler,
 		// Handlers
 		NewTokenHandler,
 		NewProxyHandler,
@@ -55,6 +58,7 @@ var CloveProviders = fx.Options(
 		NewAccountHandler,
 		NewOAuthHandler,
 		NewStatisticsHandler,
+		NewSessionHandler,
 		// Telegram client (optional)
 		NewTelegramClient,
 	),
@@ -69,6 +73,7 @@ var APIProviders = fx.Options(
 	),
 	fx.Invoke(
 		StartTokenRefreshScheduler,
+		StartSessionCleanupScheduler,
 	),
 )
 
@@ -326,10 +331,11 @@ func NewProxyService(
 	accountRepo interfaces.AccountRepository,
 	accountSvc interfaces.AccountService,
 	claudeClient *clients.ClaudeAPIClient,
+	sessionSvc interfaces.SessionService,
 	appLogger sctx.Logger,
 ) interfaces.ProxyService {
 	logger := appLogger.Withs(sctx.Fields{"component": "proxy-service"})
-	return services.NewProxyService(accountRepo, accountSvc, claudeClient, logger)
+	return services.NewProxyService(accountRepo, accountSvc, claudeClient, sessionSvc, logger)
 }
 
 // NewTokenHandler creates a new token handler
@@ -392,6 +398,85 @@ func StartTokenRefreshScheduler(lc fx.Lifecycle, scheduler *jobs.Scheduler, logg
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
 			logger.Info("Stopping token refresh scheduler")
+			scheduler.Stop()
+			return nil
+		},
+	})
+
+	return nil
+}
+
+// NewSessionRepository creates a new session repository (JSON persistence)
+func NewSessionRepository(
+	cfg *config.Config,
+	appLogger sctx.Logger,
+) interfaces.SessionRepository {
+	if !cfg.Session.Enabled {
+		appLogger.Info("Session limiting disabled, skipping session repository initialization")
+		return nil
+	}
+
+	// Use JSON file storage for sessions (consistent with accounts and tokens)
+	repo, err := repositories.NewJSONSessionRepository(cfg.Storage.DataFolder, appLogger)
+	if err != nil {
+		appLogger.Withs(sctx.Fields{"error": err}).Fatal("Failed to create session repository")
+		return nil
+	}
+
+	return repo
+}
+
+// NewSessionService creates a new session service
+func NewSessionService(
+	sessionRepo interfaces.SessionRepository,
+	cfg *config.Config,
+	appLogger sctx.Logger,
+) interfaces.SessionService {
+	// Always create service, it checks cfg.Session.Enabled internally
+	return services.NewSessionService(sessionRepo, cfg, appLogger)
+}
+
+// NewSessionHandler creates a new session handler
+func NewSessionHandler(
+	sessionService interfaces.SessionService,
+	appLogger sctx.Logger,
+) *handlers.SessionHandler {
+	return handlers.NewSessionHandler(sessionService, appLogger)
+}
+
+// NewSessionCleanupScheduler creates a session cleanup scheduler
+func NewSessionCleanupScheduler(
+	sessionService interfaces.SessionService,
+	cfg *config.Config,
+	logger sctx.Logger,
+) *jobs.SessionCleanupScheduler {
+	if !cfg.Session.Enabled || !cfg.Session.CleanupEnabled {
+		logger.Info("Session cleanup disabled")
+		return nil
+	}
+
+	return jobs.NewSessionCleanupScheduler(sessionService, cfg, logger)
+}
+
+// StartSessionCleanupScheduler starts the session cleanup scheduler with lifecycle management
+func StartSessionCleanupScheduler(
+	lc fx.Lifecycle,
+	scheduler *jobs.SessionCleanupScheduler,
+	cfg *config.Config,
+	logger sctx.Logger,
+) error {
+	if !cfg.Session.Enabled || !cfg.Session.CleanupEnabled || scheduler == nil {
+		logger.Info("Session cleanup scheduler not started (disabled or scheduler is nil)")
+		return nil
+	}
+
+	if err := scheduler.Start(); err != nil {
+		return err
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			logger.Info("Stopping session cleanup scheduler")
 			scheduler.Stop()
 			return nil
 		},

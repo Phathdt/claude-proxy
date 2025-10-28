@@ -254,12 +254,12 @@ func (s *AccountService) GetStatistics(ctx context.Context) (map[string]interfac
 
 	// Initialize counters
 	var (
-		activeCount       = 0
-		inactiveCount     = 0
-		rateLimitedCount  = 0
-		invalidCount      = 0
-		needingRefresh    = 0
-		oldestTokenAge    = 0.0
+		activeCount      = 0
+		inactiveCount    = 0
+		rateLimitedCount = 0
+		invalidCount     = 0
+		needingRefresh   = 0
+		oldestTokenAge   = 0.0
 	)
 
 	now := time.Now()

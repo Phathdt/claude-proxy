@@ -1,6 +1,12 @@
 import axios from 'axios'
 import type { Token, CreateTokenDto, UpdateTokenDto } from '@/types/token'
 import type { Statistics } from '@/types/statistics'
+import type {
+  ListSessionsResponse,
+  ListAccountSessionsResponse,
+  RevokeSessionResponse,
+  RevokeAccountSessionsResponse,
+} from '@/types/session'
 import { convertKeysToSnake, convertKeysToCamel } from './case-converter'
 
 // API base URL
@@ -265,6 +271,33 @@ export const statisticsApi = {
   // Get system statistics
   getStatistics: async (): Promise<Statistics> => {
     const response = await apiClient.get('/api/admin/statistics')
+    return response.data
+  },
+}
+
+// Session API (session management)
+export const sessionApi = {
+  // List all sessions (admin)
+  listAll: async (): Promise<ListSessionsResponse> => {
+    const response = await apiClient.get('/api/admin/sessions')
+    return response.data
+  },
+
+  // List sessions by account
+  listByAccount: async (accountId: string): Promise<ListAccountSessionsResponse> => {
+    const response = await apiClient.get(`/api/accounts/${accountId}/sessions`)
+    return response.data
+  },
+
+  // Revoke session by ID
+  revoke: async (sessionId: string): Promise<RevokeSessionResponse> => {
+    const response = await apiClient.delete(`/api/sessions/${sessionId}`)
+    return response.data
+  },
+
+  // Revoke all sessions for an account
+  revokeAccountSessions: async (accountId: string): Promise<RevokeAccountSessionsResponse> => {
+    const response = await apiClient.delete(`/api/accounts/${accountId}/sessions`)
     return response.data
   },
 }

@@ -8,7 +8,7 @@ server:
   # Request timeout for proxying to Claude API
   # Recommended: 5m for extended thinking, streaming responses, and long generations
   # Can be adjusted based on your use case (e.g., 2m for faster responses, 10m for very long tasks)
-  request_timeout: 5m  # Valid units: s (seconds), m (minutes), h (hours)
+  request_timeout: 5m # Valid units: s (seconds), m (minutes), h (hours)
 
 # Logger configuration
 logger:
@@ -47,3 +47,18 @@ storage:
 retry:
   max_retries: 3
   retry_delay: 1s
+
+# Session limiting configuration (JSON file persistence)
+session:
+  # Enable session limiting feature
+  enabled: true
+  # Maximum concurrent sessions per account
+  max_concurrent: 3
+  # Session TTL (time-to-live) - how long a session stays active without refresh
+  # Valid units: s (seconds), m (minutes), h (hours)
+  # Recommended: 5m for web apps, 30m for long-running tasks
+  session_ttl: 5m
+  # Enable automatic cleanup of expired sessions
+  cleanup_enabled: true
+  # Cleanup interval for expired sessions
+  cleanup_interval: 1m

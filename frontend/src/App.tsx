@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/dashboard'
 import { StatisticsPage } from './pages/statistics'
 import { TokensPage } from './pages/tokens'
 import { AccountsPage } from './pages/accounts'
+import SessionsPage from './pages/sessions'
 import { AdminLayout } from './components/layout/admin-layout'
 import { useAuth } from './hooks/useAuth'
 import { Loader2 } from 'lucide-react'
@@ -63,6 +64,7 @@ function App() {
               <Route path="statistics" element={<StatisticsPage />} />
               <Route path="tokens" element={<TokensPage />} />
               <Route path="accounts" element={<AccountsPage />} />
+              <Route path="sessions" element={<SessionsPage />} />
             </Route>
             <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>
