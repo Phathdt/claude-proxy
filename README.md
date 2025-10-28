@@ -100,59 +100,19 @@ API Key: your-configured-api-key
 - Manual account management
 - Add multiple accounts and switch between them
 
-### 5. Use the Proxy to Send Requests
+### 5. Use the Proxy
 
-Once accounts are added via the admin dashboard, clients can send requests through Claude Proxy using standard Claude API format:
+Send requests to `/v1/messages` with `Authorization: Bearer <token>` header. The proxy automatically:
+- Selects a healthy account via load balancing
+- Refreshes tokens if needed (60-second buffer)
+- Forwards requests to Claude API
+- Returns streaming or JSON responses
 
-```bash
-# Send request with Bearer token
-curl -X POST http://localhost:4000/v1/messages \
-  -H "Authorization: Bearer your-token-here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-opus-4-20250514",
-    "max_tokens": 1024,
-    "messages": [
-      {"role": "user", "content": "Hello Claude!"}
-    ],
-    "stream": true
-  }'
-```
-
-**How it works:**
-1. Request arrives at `/v1/messages` with Bearer token
-2. Proxy validates the token
-3. Proxy automatically selects a healthy account via load balancing
-4. Checks if account token needs refresh (60-second buffer)
-5. Refreshes token if needed (transparent to client)
-6. Forwards request to Claude API with selected account's token
-7. Returns response to client (streaming or JSON)
-
-**Note:** The endpoint `/v1/messages` is compatible with the standard Claude API format, so you can drop in Claude Proxy as a replacement for `https://api.claude.ai`. Use your stored token with `Authorization: Bearer` header.
+Compatible with standard Claude API format - drop-in replacement for `https://api.claude.ai`.
 
 ## ✨ Streaming Support
 
-**Real-time SSE Streaming**: The proxy now supports Server-Sent Events (SSE) for real-time response streaming!
-
-**How it works:**
-- Automatically detects `"stream": true` in requests
-- Streams Claude API responses in real-time using SSE
-- Provides immediate feedback for extended thinking and long responses
-- Low memory footprint - no buffering required
-- Graceful handling of client disconnections
-
-**Usage:**
-```bash
-curl -X POST http://localhost:4000/v1/messages \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-opus-4-20250514",
-    "max_tokens": 1024,
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "stream": true
-  }'
-```
+Supports Server-Sent Events (SSE) for real-time response streaming. Set `"stream": true` in requests for immediate feedback on extended thinking and long responses.
 
 ## 🛡️ Enhanced Account Status System
 
@@ -193,42 +153,7 @@ The proxy intelligently selects accounts based on health status:
 
 ### Automatic Recovery
 
-The scheduler runs hourly to:
-1. Check all `rate_limited` accounts for expired limits
-2. Automatically recover and mark as `active`
-3. Resume routing requests to recovered accounts
-4. Log recovery events for monitoring
-
-### API Response Example
-
-Account status is visible in the admin API:
-
-```bash
-GET /api/accounts
-```
-
-```json
-{
-  "accounts": [
-    {
-      "id": "app_123",
-      "name": "Production Account",
-      "status": "active",
-      "rate_limited_until": null,
-      "last_refresh_error": "",
-      "expires_at": 1735347600
-    },
-    {
-      "id": "app_456",
-      "name": "Backup Account",
-      "status": "rate_limited",
-      "rate_limited_until": 1735351200,
-      "last_refresh_error": "failed to refresh token: status 429: rate limit exceeded",
-      "expires_at": 1735344000
-    }
-  ]
-}
-```
+The scheduler runs hourly to check `rate_limited` accounts, automatically recover expired limits, and resume routing requests.
 
 ### Benefits
 
@@ -239,94 +164,29 @@ GET /api/accounts
 
 ## API Endpoints
 
-### Admin Authentication
-
-All admin endpoints require the `X-API-Key` header with your configured admin API key:
-
-```bash
--H "X-API-Key: your-configured-api-key"
-```
-
-### OAuth Flow (Admin Only)
-
-Used by admin dashboard to add accounts:
-
-- **`GET /oauth/authorize`** - Generate OAuth authorization URL with PKCE
-  - Returns: `{ authorization_url, state, code_verifier }`
-  - Requires: `X-API-Key` header (admin API key)
-
-- **`POST /oauth/exchange`** - Exchange authorization code for access token
-  - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
-  - Returns: Account info with tokens and expiry
-  - Saves account to JSON persistence
-  - Requires: `X-API-Key` header (admin API key)
+All admin endpoints require `X-API-Key` header with your configured admin API key.
 
 ### Account Management
 
-- **`GET /api/accounts`** - List all saved accounts
-  - Requires: `X-API-Key` header
-  - Returns: Array of accounts with status, tokens, and expiry info
-  - Shows: account health (`active`, `inactive`, `rate_limited`, `invalid`)
-  - Includes: `rate_limited_until` timestamp and `last_refresh_error` message
-
+- **`GET /api/accounts`** - List all accounts with status and token info
 - **`POST /api/accounts`** - Create new account from OAuth exchange
-  - Requires: `X-API-Key` header
-  - Body: `{ "code": "...", "state": "...", "code_verifier": "..." }`
-  - Returns: New account with tokens
-
 - **`PUT /api/accounts/{id}`** - Update account status or name
-  - Requires: `X-API-Key` header
-  - Body: `{ "name": "...", "status": "active|inactive|rate_limited|invalid" }`
-  - Allows manual status changes for recovery or maintenance
-
 - **`DELETE /api/accounts/{id}`** - Remove account
-  - Requires: `X-API-Key` header
-  - Stops routing requests to this account
 
 ### Claude API Proxy
 
-- **`POST /v1/messages`** (and all `/v1/*` endpoints) - Proxy Claude API requests
+- **`POST /v1/messages`** (and all `/v1/*`) - Proxy requests to Claude API
   - Requires: `Authorization: Bearer <token>` header
-  - Body: Standard Claude API request format
-    - `model`: Model identifier (e.g., "claude-opus-4-20250514")
-    - `messages`: Array of messages with role and content
-    - `max_tokens`: Maximum tokens in response
-    - `stream`: Boolean for streaming response (optional)
-  - Auto-selects healthy account via load balancing
-  - Auto-refreshes token if within 60 seconds of expiry
-  - Returns: Claude API response in standard format (streaming or JSON)
+  - Auto-selects healthy account, auto-refreshes tokens, returns streaming or JSON
 
 ### Admin & Monitoring
 
-- **`GET /api/admin/statistics`** - Get system statistics and account health metrics
-  - Requires: `X-API-Key` header (admin API key)
-  - Returns: Real-time statistics including:
-    - Account counts by status (total, active, inactive, rate_limited, invalid)
-    - Token health metrics (accounts needing refresh, oldest token age)
-    - System health status (`healthy`, `degraded`, `unhealthy`)
-  - Response example:
-    ```json
-    {
-      "total_accounts": 5,
-      "active_accounts": 3,
-      "inactive_accounts": 1,
-      "rate_limited_accounts": 1,
-      "invalid_accounts": 0,
-      "accounts_needing_refresh": 2,
-      "oldest_token_age_hours": 2.5,
-      "system_health": "healthy"
-    }
-    ```
-  - System health logic:
-    - `healthy`: ≥2 active accounts
-    - `degraded`: 1 active account
-    - `unhealthy`: 0 active accounts
+- **`GET /api/admin/statistics`** - System statistics and health metrics
+  - Returns: Account counts by status, token health, system health (`healthy`/`degraded`/`unhealthy`)
 
-### Health & Status
+### Health Check
 
-- **`GET /health`** - Health check endpoint
-  - No auth required
-  - Returns: Server status and account health summary
+- **`GET /health`** - Server status (no auth required)
 
 ## Configuration
 
@@ -367,81 +227,32 @@ retry:
 
 ## Environment Variables
 
-Override any YAML config with uppercase env vars using `__` for nesting:
+Override YAML config with uppercase env vars using `__` for nesting:
 
 ```bash
-# Server
-export SERVER__PORT=8080
-export SERVER__HOST=127.0.0.1
-export SERVER__REQUEST_TIMEOUT=10m  # For very long requests (default: 5m)
-
-# OAuth
-export OAUTH__CLIENT_ID=your-client-id
-export OAUTH__TOKEN_URL=https://api.claude.ai/oauth/token
-
-# Auth
-export AUTH__API_KEY=your-secret-key
-
-# Storage
-export STORAGE__DATA_FOLDER=~/.claude-proxy/data
-
-# Logger
-export LOGGER__LEVEL=debug
-export LOGGER__FORMAT=json
+SERVER__PORT=8080
+OAUTH__CLIENT_ID=your-client-id
+AUTH__API_KEY=your-secret-key
+STORAGE__DATA_FOLDER=~/.claude-proxy/data
+LOGGER__LEVEL=debug
 ```
 
 ## Data Storage
 
-Account credentials stored in `~/.claude-proxy/data/` as JSON:
+Account credentials stored in `~/.claude-proxy/data/` as JSON files.
 
-```
-~/.claude-proxy/data/
-├── account_*.json          # Individual account files
-└── ...
-```
-
-Each account contains:
-- `id`: Unique account identifier
-- `name`: Account display name
-- `access_token`: Current access token
-- `refresh_token`: For obtaining new access tokens
-- `expires_at`: Timestamp when access token expires
-- `refresh_at`: Timestamp of last token refresh
-- `status`: active/inactive
-- `last_refresh_error`: Error message if refresh failed
-
-**⚠️ SECURITY**: Keep `~/.claude-proxy/data/` secure (0700 permissions). Files contain sensitive OAuth tokens.
+**⚠️ SECURITY**: Keep `~/.claude-proxy/data/` secure (0700 permissions). Contains sensitive OAuth tokens.
 
 ## Admin Dashboard
 
-The admin dashboard is a modern React application with the following features:
+Modern React application with:
+- Dark/Light theme support
+- Real-time statistics with 30s auto-refresh
+- Account management with OAuth flow
+- System health monitoring
+- Responsive design with TailwindCSS v4
 
-**UI Features:**
-- **Dark/Light Theme**: Automatic theme switching with system preference detection and manual override
-- **Responsive Design**: Mobile-friendly interface using TailwindCSS v4
-- **Real-time Updates**: React Query for efficient data fetching and caching
-- **Statistics Dashboard**: Real-time monitoring with:
-  - System health indicator (healthy/degraded/unhealthy)
-  - Account counts by status with color-coded cards
-  - Token health metrics and auto-refresh tracking
-  - 30-second auto-refresh for live data
-- **Account Management**: View all accounts, their status, and token expiration
-- **OAuth Flow**: Guided OAuth setup process with visual feedback
-- **Token Management**: Create, edit, and delete API tokens with usage tracking
-
-**Theme Support:**
-- Three modes: Light, Dark, and System (follows OS preference)
-- Persistent theme selection (stored in localStorage)
-- Optimized color contrast for readability in both modes
-- Smooth theme transitions
-
-**Tech Stack:**
-- React 19 with TypeScript
-- Vite 7 for fast builds and HMR
-- TailwindCSS v4 with shadcn/ui components
-- React Router DOM v7 for routing
-- TanStack React Query v5 for state management
-- ESLint v9 with Prettier integration
+**Tech Stack**: React 19 + TypeScript, Vite 7, TanStack Query v5, shadcn/ui
 
 ## Development
 
@@ -493,109 +304,19 @@ cd frontend && pnpm build       # Production build
 
 ## Architecture
 
-**Request Flow:**
-```
-┌──────────────────────┐
-│   Client Request     │
-│   (X-API-Key Auth)   │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────────────────┐
-│   Claude Proxy Server            │
-│  ┌─────────────────────────────┐ │
-│  │ Multi-Account Load Balancer  │ │
-│  │ (Round-Robin + Health Check) │ │
-│  └────────────┬────────────────┘ │
-└───────────────┼──────────────────┘
-                │ Selected Account
-                ▼
-    ┌──────────────────────────┐
-    │ Token Refresh Check      │
-    │ (60s before expiry)      │
-    └────────────┬─────────────┘
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-   [Need Refresh]    [Token Valid]
-        │                 │
-        ▼                 │
-   ┌─────────┐           │
-   │  OAuth  │           │
-   │ Refresh │           │
-   └────┬────┘           │
-        │                │
-        └────────┬───────┘
-                 ▼
-      ┌────────────────────┐
-      │  Claude API        │
-      │  (Proxy Request)   │
-      └────────────────────┘
-```
-
 **Key Components:**
-- **Scheduler**: Cronjob runs hourly to refresh expiring tokens
-- **Load Balancer**: Stateless round-robin account selection
-- **Token Refresh**: Automatic on-demand + scheduled
+- **Load Balancer**: Round-robin with health-aware account selection
+- **Token Refresh**: Hourly scheduler + on-demand (60s buffer)
 - **OAuth Service**: PKCE-based token exchange and refresh
-- **JSON Persistence**: File-based account storage (no database)
-- **Admin Dashboard**: React UI for account/OAuth management
+- **JSON Persistence**: File-based storage (no database)
+- **Admin Dashboard**: React UI for management
 
-## Go 1.24 Features
+**Request Flow**: Client → Load Balancer → Token Check → OAuth Refresh (if needed) → Claude API
 
-This project leverages modern Go 1.24 features for improved performance, concurrency, and developer experience:
+## Requirements
 
-- **Enhanced Concurrency**: Uses Go 1.24's optimized goroutine scheduling and improved `sync` primitives
-- **Better Error Handling**: Leverages Go's error wrapping and chain capabilities
-- **Generic Collections**: Uses Go generics for type-safe data handling in repositories and services
-- **Range Over Integer**: Modern syntax for simple numeric loops (e.g., `for i := range n`)
-- **Improved Standard Library**: Benefits from latest Go standard library improvements and optimizations
-- **Stronger Memory Safety**: Compiler improvements for better memory safety checks
-- **Better Performance**: Go 1.24 runtime improvements for faster request handling and token refresh operations
-
-**Version Requirements:**
-```bash
-# Check Go version
-go version
-
-# Must be Go 1.24 or higher
-# Recommended: Go 1.24.0 or latest stable
-```
-
-If you have an older Go version, [download Go 1.24+](https://golang.org/dl/).
-
-## Error Handling
-
-**Graceful Request Cancellation:**
-- Smart detection of user-canceled requests (context cancellation)
-- No panic recovery logs for normal user cancellations
-- Proper HTTP status codes:
-  - `499` - Client Closed Request (user canceled)
-  - `408` - Request Timeout (deadline exceeded)
-  - `503` - Service Unavailable (actual errors)
-
-**Robust Error Recovery:**
-- Panic recovery middleware catches unexpected errors
-- AppError system for structured, HTTP-aware error handling
-- Automatic retry logic with exponential backoff
-- Detailed error logging for debugging
-
-## Security
-
-- **API Key Authentication**: All proxy requests require valid API key
-- **OAuth 2.0 + PKCE**: Secure, standards-compliant authentication
-- **Automatic Token Refresh**: 60-second buffer prevents token expiry
-- **File Permissions**: Account data stored with restricted 0700 permissions
-- **No Token Exposure**: Tokens never logged or exposed in responses
-- **HTTPS Ready**: Configure with reverse proxy for HTTPS in production
-- **Context-Aware Request Handling**: Graceful handling of canceled and timed-out requests
-
-## Token Refresh
-
-- **Automatic Hourly**: Cronjob runs at 0 minutes every hour
-- **On-Demand**: Triggers when token within 60 seconds of expiry
-- **Transparent**: Refresh happens automatically, no user intervention needed
-- **Error Handling**: Failed refreshes logged, account marked as unhealthy
-- **Load Balancer Aware**: Prefers accounts with valid tokens for better UX
+- **Go 1.24+** - [Download](https://golang.org/dl/)
+- Uses modern Go features: generics, enhanced concurrency, improved error handling
 
 ## Roadmap
 
