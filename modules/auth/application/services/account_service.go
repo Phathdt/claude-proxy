@@ -145,7 +145,10 @@ func (s *AccountService) FinalSync(ctx context.Context) error {
 }
 
 // CreateAccount creates a new account from OAuth code
-func (s *AccountService) CreateAccount(ctx context.Context, name, code, codeVerifier, orgID string) (*entities.Account, error) {
+func (s *AccountService) CreateAccount(
+	ctx context.Context,
+	name, code, codeVerifier, orgID string,
+) (*entities.Account, error) {
 	// Exchange code for tokens using PKCE code verifier
 	tokenResp, err := s.oauthService.ExchangeCodeForToken(ctx, code, codeVerifier)
 	if err != nil {

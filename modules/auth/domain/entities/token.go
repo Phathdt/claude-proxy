@@ -8,6 +8,7 @@ type Token struct {
 	Name       string
 	Key        string
 	Status     TokenStatus
+	Role       TokenRole
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	UsageCount int
@@ -22,9 +23,22 @@ const (
 	TokenStatusInactive TokenStatus = "inactive"
 )
 
+// TokenRole represents the role of a token
+type TokenRole string
+
+const (
+	TokenRoleUser  TokenRole = "user"  // Regular API access
+	TokenRoleAdmin TokenRole = "admin" // Admin UI access
+)
+
 // IsActive returns true if the token is active
 func (t *Token) IsActive() bool {
 	return t.Status == TokenStatusActive
+}
+
+// IsAdmin returns true if the token has admin role
+func (t *Token) IsAdmin() bool {
+	return t.Role == TokenRoleAdmin
 }
 
 // IncrementUsage increments the usage count and updates last used time
@@ -44,10 +58,11 @@ func (t *Token) Activate() {
 	t.Status = TokenStatusActive
 }
 
-// Update updates the token's name and key
-func (t *Token) Update(name, key string, status TokenStatus) {
+// Update updates the token's name, key, status and role
+func (t *Token) Update(name, key string, status TokenStatus, role TokenRole) {
 	t.Name = name
 	t.Key = key
 	t.Status = status
+	t.Role = role
 	t.UpdatedAt = time.Now()
 }

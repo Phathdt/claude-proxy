@@ -1,8 +1,9 @@
 package dto
 
 import (
-	"claude-proxy/modules/auth/domain/entities"
 	"time"
+
+	"claude-proxy/modules/auth/domain/entities"
 )
 
 // RFC3339 is the datetime format for API responses (ISO 8601)
@@ -25,12 +26,12 @@ type AccountResponse struct {
 	ID               string  `json:"id"`
 	Name             string  `json:"name"`
 	OrganizationUUID string  `json:"organization_uuid"`
-	ExpiresAt        string  `json:"expires_at"`        // RFC3339/ISO 8601 datetime
+	ExpiresAt        string  `json:"expires_at"` // RFC3339/ISO 8601 datetime
 	Status           string  `json:"status"`
 	RateLimitedUntil *string `json:"rate_limited_until,omitempty"` // RFC3339/ISO 8601 datetime, nil if not rate limited
 	LastRefreshError string  `json:"last_refresh_error,omitempty"` // Error message from last refresh attempt
-	CreatedAt        string  `json:"created_at"`        // RFC3339/ISO 8601 datetime
-	UpdatedAt        string  `json:"updated_at"`        // RFC3339/ISO 8601 datetime
+	CreatedAt        string  `json:"created_at"`                   // RFC3339/ISO 8601 datetime
+	UpdatedAt        string  `json:"updated_at"`                   // RFC3339/ISO 8601 datetime
 }
 
 // ToAccountResponse converts entity to response DTO (without sensitive tokens)

@@ -23,7 +23,7 @@ type AccountDTO struct {
 	OrganizationUUID string  `json:"organization_uuid"`
 	AccessToken      string  `json:"access_token"`
 	RefreshToken     string  `json:"refresh_token"`
-	ExpiresAt        string  `json:"expires_at"`                   // RFC3339/ISO 8601 datetime
+	ExpiresAt        string  `json:"expires_at"` // RFC3339/ISO 8601 datetime
 	Status           string  `json:"status"`
 	RateLimitedUntil *string `json:"rate_limited_until,omitempty"` // RFC3339/ISO 8601 datetime, nil if not rate limited
 	LastRefreshError string  `json:"last_refresh_error,omitempty"` // Error message from last refresh attempt

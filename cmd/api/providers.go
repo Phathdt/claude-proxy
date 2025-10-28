@@ -570,8 +570,8 @@ func NewProxyHandler(proxyService proxyinterfaces.ProxyService) *handlers.ProxyH
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
-	return handlers.NewAuthHandler(cfg)
+func NewAuthHandler(tokenService authinterfaces.TokenService, cfg *config.Config) *handlers.AuthHandler {
+	return handlers.NewAuthHandler(tokenService, cfg)
 }
 
 // NewAccountHandler creates a new account handler

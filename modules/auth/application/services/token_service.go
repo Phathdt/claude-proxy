@@ -145,7 +145,13 @@ func (s *TokenService) CreateToken(
 	ctx context.Context,
 	name, key string,
 	status entities.TokenStatus,
+	role entities.TokenRole,
 ) (*entities.Token, error) {
+	// Default to user role if not specified
+	if role == "" {
+		role = entities.TokenRoleUser
+	}
+
 	// Create token entity
 	now := time.Now()
 	token := &entities.Token{
@@ -153,6 +159,7 @@ func (s *TokenService) CreateToken(
 		Name:       name,
 		Key:        key,
 		Status:     status,
+		Role:       role,
 		UsageCount: 0,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -163,7 +170,7 @@ func (s *TokenService) CreateToken(
 	}
 
 	s.markDirty()
-	s.logger.Withs(sctx.Fields{"token_id": token.ID, "name": token.Name}).Info("Token created")
+	s.logger.Withs(sctx.Fields{"token_id": token.ID, "name": token.Name, "role": role}).Info("Token created")
 	return token, nil
 }
 
@@ -187,6 +194,7 @@ func (s *TokenService) UpdateToken(
 	ctx context.Context,
 	id, name, key string,
 	status entities.TokenStatus,
+	role entities.TokenRole,
 ) (*entities.Token, error) {
 	// Get existing token
 	token, err := s.memoryRepo.GetByID(ctx, id)
@@ -206,6 +214,7 @@ func (s *TokenService) UpdateToken(
 	token.Name = name
 	token.Key = key
 	token.Status = status
+	token.Role = role
 	token.UpdatedAt = time.Now()
 
 	if err := s.memoryRepo.Update(ctx, token); err != nil {

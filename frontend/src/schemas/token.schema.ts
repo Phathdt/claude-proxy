@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const statusEnum = z.enum(['active', 'inactive'])
+export const roleEnum = z.enum(['user', 'admin'])
 
 export const createTokenSchema = z.object({
   name: z
@@ -12,20 +13,24 @@ export const createTokenSchema = z.object({
     .string()
     .min(1, 'Token value is required'),
   status: statusEnum.default('active'),
+  role: roleEnum.default('user').optional(),
 })
 
 export const updateTokenSchema = createTokenSchema.extend({
   id: z.string().min(1, 'ID is required'),
+  role: roleEnum.default('user'),
 })
 
 export type CreateTokenFormData = {
   name: string
   key: string
   status: 'active' | 'inactive'
+  role?: 'user' | 'admin'
 }
 
 export type UpdateTokenFormData = CreateTokenFormData & {
   id: string
+  role: 'user' | 'admin'
 }
 
 // Validation helpers for unique constraints

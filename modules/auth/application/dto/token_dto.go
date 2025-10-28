@@ -7,6 +7,7 @@ type CreateTokenRequest struct {
 	Name   string `json:"name"   binding:"required"`
 	Key    string `json:"key"    binding:"required"`
 	Status string `json:"status" binding:"required,oneof=active inactive"`
+	Role   string `json:"role"   binding:"omitempty,oneof=user admin"` // Default: user
 }
 
 // UpdateTokenRequest represents the request to update a token
@@ -14,6 +15,7 @@ type UpdateTokenRequest struct {
 	Name   string `json:"name"   binding:"required"`
 	Key    string `json:"key"    binding:"required"`
 	Status string `json:"status" binding:"required,oneof=active inactive"`
+	Role   string `json:"role"   binding:"required,oneof=user admin"`
 }
 
 // TokenResponse represents the token response
@@ -22,8 +24,9 @@ type TokenResponse struct {
 	Name       string  `json:"name"`
 	Key        string  `json:"key"`
 	Status     string  `json:"status"`
-	CreatedAt  string  `json:"created_at"`  // RFC3339/ISO 8601 datetime
-	UpdatedAt  string  `json:"updated_at"`  // RFC3339/ISO 8601 datetime
+	Role       string  `json:"role"`       // user or admin
+	CreatedAt  string  `json:"created_at"` // RFC3339/ISO 8601 datetime
+	UpdatedAt  string  `json:"updated_at"` // RFC3339/ISO 8601 datetime
 	UsageCount int     `json:"usage_count"`
 	LastUsedAt *string `json:"last_used_at,omitempty"` // RFC3339/ISO 8601 datetime
 }
@@ -35,6 +38,7 @@ func ToTokenResponse(token *entities.Token) *TokenResponse {
 		Name:       token.Name,
 		Key:        token.Key,
 		Status:     string(token.Status),
+		Role:       string(token.Role),
 		CreatedAt:  token.CreatedAt.Format(RFC3339),
 		UpdatedAt:  token.UpdatedAt.Format(RFC3339),
 		UsageCount: token.UsageCount,

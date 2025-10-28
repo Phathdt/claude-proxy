@@ -4,19 +4,22 @@ import (
 	"net/http"
 
 	"claude-proxy/config"
+	"claude-proxy/modules/auth/domain/interfaces"
 
 	"github.com/gin-gonic/gin"
 )
 
 // AuthHandler handles authentication requests
 type AuthHandler struct {
-	apiKey string
+	tokenService interfaces.TokenService
+	configAPIKey string
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(cfg *config.Config) *AuthHandler {
+func NewAuthHandler(tokenService interfaces.TokenService, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
-		apiKey: cfg.Auth.APIKey,
+		tokenService: tokenService,
+		configAPIKey: cfg.Auth.APIKey,
 	}
 }
 
@@ -61,24 +64,41 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Validate API key
-	if req.APIKey != h.apiKey {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid API key",
+	// First, try to validate as admin token from token service
+	token, err := h.tokenService.ValidateToken(c.Request.Context(), req.APIKey)
+	if err == nil && token.IsAdmin() {
+		// Valid admin token
+		c.JSON(http.StatusOK, LoginResponse{
+			Success: true,
+			Token:   req.APIKey,
+			User: User{
+				ID:    token.ID,
+				Email: "admin@localhost",
+				Name:  token.Name,
+				Role:  string(token.Role),
+			},
 		})
 		return
 	}
 
-	// Return success with token (just return the API key as token)
-	c.JSON(http.StatusOK, LoginResponse{
-		Success: true,
-		Token:   req.APIKey,
-		User: User{
-			ID:    "admin",
-			Email: "admin@localhost",
-			Name:  "Admin",
-			Role:  "admin",
-		},
+	// Fall back to config API key (backward compatibility)
+	if req.APIKey == h.configAPIKey {
+		c.JSON(http.StatusOK, LoginResponse{
+			Success: true,
+			Token:   req.APIKey,
+			User: User{
+				ID:    "admin",
+				Email: "admin@localhost",
+				Name:  "Admin",
+				Role:  "admin",
+			},
+		})
+		return
+	}
+
+	// Neither admin token nor config key
+	c.JSON(http.StatusUnauthorized, gin.H{
+		"error": "Invalid API key",
 	})
 }
 
@@ -92,22 +112,38 @@ func (h *AuthHandler) Validate(c *gin.Context) {
 		return
 	}
 
-	// Validate API key
-	if req.APIKey != h.apiKey {
+	// First, try to validate as admin token from token service
+	token, err := h.tokenService.ValidateToken(c.Request.Context(), req.APIKey)
+	if err == nil && token.IsAdmin() {
+		// Valid admin token
 		c.JSON(http.StatusOK, ValidateResponse{
-			Valid: false,
+			Valid: true,
+			User: &User{
+				ID:    token.ID,
+				Email: "admin@localhost",
+				Name:  token.Name,
+				Role:  string(token.Role),
+			},
 		})
 		return
 	}
 
-	// Return valid with user info
+	// Fall back to config API key (backward compatibility)
+	if req.APIKey == h.configAPIKey {
+		c.JSON(http.StatusOK, ValidateResponse{
+			Valid: true,
+			User: &User{
+				ID:    "admin",
+				Email: "admin@localhost",
+				Name:  "Admin",
+				Role:  "admin",
+			},
+		})
+		return
+	}
+
+	// Neither admin token nor config key
 	c.JSON(http.StatusOK, ValidateResponse{
-		Valid: true,
-		User: &User{
-			ID:    "admin",
-			Email: "admin@localhost",
-			Name:  "Admin",
-			Role:  "admin",
-		},
+		Valid: false,
 	})
 }

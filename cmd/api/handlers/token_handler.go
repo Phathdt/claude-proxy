@@ -82,6 +82,7 @@ func (h *TokenHandler) CreateToken(c *gin.Context) {
 		req.Name,
 		req.Key,
 		entities.TokenStatus(req.Status),
+		entities.TokenRole(req.Role),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -123,6 +124,7 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 		req.Name,
 		req.Key,
 		entities.TokenStatus(req.Status),
+		entities.TokenRole(req.Role),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

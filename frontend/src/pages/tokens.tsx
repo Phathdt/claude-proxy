@@ -86,6 +86,7 @@ export function TokensPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>API Key</TableHead>
+                  <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Usage</TableHead>
                   <TableHead>Last Used</TableHead>
@@ -112,6 +113,17 @@ export function TokensPage() {
                           )}
                         </button>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          token.role === 'admin'
+                            ? 'bg-purple-500/10 text-purple-500'
+                            : 'bg-blue-500/10 text-blue-500'
+                        }`}
+                      >
+                        {token.role}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span

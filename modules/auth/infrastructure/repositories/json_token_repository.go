@@ -22,8 +22,9 @@ type TokenDTO struct {
 	Name       string  `json:"name"`
 	Key        string  `json:"key"`
 	Status     string  `json:"status"`
-	CreatedAt  string  `json:"created_at"`  // RFC3339/ISO 8601 datetime
-	UpdatedAt  string  `json:"updated_at"`  // RFC3339/ISO 8601 datetime
+	Role       string  `json:"role"`       // user or admin
+	CreatedAt  string  `json:"created_at"` // RFC3339/ISO 8601 datetime
+	UpdatedAt  string  `json:"updated_at"` // RFC3339/ISO 8601 datetime
 	UsageCount int     `json:"usage_count"`
 	LastUsedAt *string `json:"last_used_at,omitempty"` // RFC3339/ISO 8601 datetime
 }
@@ -209,6 +210,7 @@ func entityToDTO(token *entities.Token) *TokenDTO {
 		Name:       token.Name,
 		Key:        token.Key,
 		Status:     string(token.Status),
+		Role:       string(token.Role),
 		CreatedAt:  token.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  token.UpdatedAt.Format(time.RFC3339),
 		UsageCount: token.UsageCount,
@@ -227,11 +229,18 @@ func dtoToEntity(dto *TokenDTO) *entities.Token {
 	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, dto.UpdatedAt)
 
+	// Default role to user if not set (backward compatibility)
+	role := entities.TokenRole(dto.Role)
+	if role == "" {
+		role = entities.TokenRoleUser
+	}
+
 	token := &entities.Token{
 		ID:         dto.ID,
 		Name:       dto.Name,
 		Key:        dto.Key,
 		Status:     entities.TokenStatus(dto.Status),
+		Role:       role,
 		CreatedAt:  createdAt,
 		UpdatedAt:  updatedAt,
 		UsageCount: dto.UsageCount,

@@ -38,6 +38,7 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
       name: '',
       key: '',
       status: 'active',
+      role: 'user',
     },
   })
 
@@ -51,12 +52,14 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
           name: token.name,
           key: token.key,
           status: token.status as 'active' | 'inactive',
+          role: token.role as 'user' | 'admin',
         })
       } else {
         form.reset({
           name: '',
           key: '',
           status: 'active',
+          role: 'user',
         })
       }
     }
@@ -65,7 +68,11 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
   const handleSubmit = async (data: CreateTokenFormData) => {
     try {
       if (token) {
-        await updateMutation.mutateAsync({ id: token.id, ...data })
+        await updateMutation.mutateAsync({
+          id: token.id,
+          ...data,
+          role: data.role || 'user'
+        })
       } else {
         await createMutation.mutateAsync(data)
       }
@@ -116,6 +123,29 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Role</FormLabel>
+                <FormControl>
+                  <select
+                    className="border-input bg-background text-foreground focus:border-ring focus:ring-ring w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
+                    {...field}
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </FormControl>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Admin tokens can access the admin UI
+                </p>
                 <FormMessage />
               </FormItem>
             )}
