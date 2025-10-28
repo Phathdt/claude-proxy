@@ -597,6 +597,77 @@ If you have an older Go version, [download Go 1.24+](https://golang.org/dl/).
 - **Error Handling**: Failed refreshes logged, account marked as unhealthy
 - **Load Balancer Aware**: Prefers accounts with valid tokens for better UX
 
+## Roadmap
+
+This section tracks feature parity with the Python version and planned enhancements. For detailed comparison, see [Feature Comparison Table](docs/full.md#implementation-status-comparison).
+
+### ✅ Completed Features
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| OAuth 2.0 + PKCE | ✅ | Secure authentication with PKCE flow |
+| Token Auto-Refresh | ✅ | Hourly cronjob + on-demand refresh (60s buffer) |
+| Multi-Account Load Balancing | ✅ | Round-robin with health-aware selection |
+| SSE Streaming Support | ✅ | Real-time streaming responses |
+| Configurable Timeout | ✅ | 30-second request timeout with context propagation |
+| Rate Limit Detection | ✅ | Auto-detect 429 errors, mark accounts as rate_limited |
+| 4-State Account System | ✅ | active, inactive, rate_limited, invalid |
+| Automatic Recovery | ✅ | Hourly scheduler recovers expired rate-limited accounts |
+| Statistics & Health Monitoring | ✅ | Real-time dashboard with system health metrics |
+
+### 🔥 High Priority (Next Up)
+
+No high-priority items remaining! All critical features implemented.
+
+### ⚡ Important Features
+
+| Feature | Estimate | Benefits | Status |
+|---------|----------|----------|--------|
+| **Idle Account Detection** | 2-3 hours | Automatically deactivate unused accounts to reduce refresh overhead | 📋 Planned |
+| **Session Limiting** | 2-3 hours | Prevent concurrent usage abuse with per-account session limits | 📋 Planned |
+| **Enhanced Exponential Backoff** | 1-2 hours | Smarter retry logic with jitter and configurable max attempts | 📋 Planned |
+
+**Implementation Details:**
+
+- **Idle Account Detection**: Track last usage timestamp, auto-deactivate after configurable period (e.g., 7 days)
+- **Session Limiting**: Redis-based session tracking with configurable max concurrent sessions per account
+- **Enhanced Exponential Backoff**: Replace basic retry with exponential backoff (2^n * base_delay) + random jitter
+
+### 📦 Nice to Have
+
+| Feature | Estimate | Benefits | Status |
+|---------|----------|----------|--------|
+| **Capability Detection** | 1-2 hours | Detect Claude model capabilities per account (e.g., vision, artifacts) | 💡 Idea |
+| **Organization Validation** | 1 hour | Validate org UUID during account creation | 💡 Idea |
+| **Usage Metrics** | 2-3 hours | Track request counts, tokens used, error rates per account | 💡 Idea |
+
+### 🚀 Future Enhancements (Beyond Python Version)
+
+- **Redis-based Session Storage**: Horizontal scaling support for multi-instance deployments
+- **Prometheus/Grafana Integration**: Metrics export for monitoring and alerting
+- **Rate Limiting Middleware**: Protect API from abuse by consumers
+- **WebSocket Support**: Bidirectional real-time communication
+- **Plugin System**: Custom request/response processors
+- **Database Backend**: PostgreSQL/MongoDB option for large-scale deployments
+- **Advanced Caching**: Redis/Memcached for response caching
+- **API Versioning**: Support v1, v2 endpoints for backward compatibility
+- **GraphQL Endpoint**: Alternative to REST API
+- **OpenAPI/Swagger Docs**: Auto-generated API documentation
+
+### 📊 Progress Tracking
+
+**Core Features**: 9/9 ✅ (100% complete)
+**Important Features**: 0/3 (0% complete)
+**Nice to Have**: 0/3 (0% complete)
+
+**Overall Feature Parity with Python Version**: 9/12 (75% complete)
+
+### 🎯 Next Milestone
+
+**Target**: Complete all ⚡ Important features (Idle Detection, Session Limiting, Enhanced Backoff)
+**Estimated Time**: 5-8 hours
+**Benefits**: Production-ready hardening with abuse prevention and intelligent retry logic
+
 ## License
 
 MIT
