@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/auth/domain/entities"
 	"claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/pkg/errors"
 

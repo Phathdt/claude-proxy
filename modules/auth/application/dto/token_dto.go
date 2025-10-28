@@ -1,6 +1,6 @@
 package dto
 
-import "claude-proxy/modules/proxy/domain/entities"
+import "claude-proxy/modules/auth/domain/entities"
 
 // CreateTokenRequest represents the request to create a token
 type CreateTokenRequest struct {

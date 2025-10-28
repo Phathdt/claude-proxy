@@ -49,10 +49,14 @@ retry:
   retry_delay: 1s
 
 # Session limiting configuration (JSON file persistence)
+# Sessions track concurrent requests per client (IP + User-Agent)
+# This prevents abuse while allowing dynamic account rotation
 session:
   # Enable session limiting feature
   enabled: true
-  # Maximum concurrent sessions per account
+  # Maximum concurrent sessions globally (per client: IP + User-Agent)
+  # Each unique client can have this many active requests at once
+  # Example: max_concurrent: 3 means a client can make 3 simultaneous requests
   max_concurrent: 3
   # Session TTL (time-to-live) - how long a session stays active without refresh
   # Valid units: s (seconds), m (minutes), h (hours)

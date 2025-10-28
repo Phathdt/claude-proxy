@@ -8,11 +8,14 @@ import (
 
 	"claude-proxy/cmd/api/handlers"
 	"claude-proxy/config"
-	"claude-proxy/modules/proxy/application/services"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	authservices "claude-proxy/modules/auth/application/services"
+	authinterfaces "claude-proxy/modules/auth/domain/interfaces"
+	authjobs "claude-proxy/modules/auth/infrastructure/jobs"
+	authrepos "claude-proxy/modules/auth/infrastructure/repositories"
+	proxyservices "claude-proxy/modules/proxy/application/services"
+	proxyinterfaces "claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/modules/proxy/infrastructure/clients"
-	"claude-proxy/modules/proxy/infrastructure/jobs"
-	"claude-proxy/modules/proxy/infrastructure/repositories"
+	proxyjobs "claude-proxy/modules/proxy/infrastructure/jobs"
 	"claude-proxy/pkg/errors"
 	"claude-proxy/pkg/oauth"
 	"claude-proxy/pkg/telegram"
@@ -37,18 +40,23 @@ var CloveProviders = fx.Options(
 	fx.Provide(
 		// OAuth service
 		NewOAuthService,
-		// Infrastructure - Repositories
-		NewTokenRepository,
-		NewAccountRepository,
-		NewSessionRepository,
+		// Infrastructure - Memory Repositories
+		NewMemoryAccountRepository,
+		NewMemoryTokenRepository,
+		NewMemorySessionRepository,
+		// Infrastructure - JSON Repositories
+		NewJSONAccountRepository,
+		NewJSONTokenRepository,
+		NewJSONSessionRepository,
 		// Infrastructure - Clients
 		NewClaudeAPIClient,
-		// Application - Services
+		// Application - Services (hybrid storage)
 		NewTokenService,
 		NewAccountService,
 		NewSessionService,
 		NewProxyService,
 		// Infrastructure - Jobs
+		NewSyncScheduler,
 		NewTokenRefreshScheduler,
 		NewSessionCleanupScheduler,
 		// Handlers
@@ -273,33 +281,123 @@ func (a *oauthRefreshAdapter) RefreshAccessToken(
 	return tokenResp.AccessToken, tokenResp.RefreshToken, tokenResp.ExpiresIn, nil
 }
 
-// NewTokenRepository creates a new JSON token repository
-func NewTokenRepository(cfg *config.Config, appLogger sctx.Logger) (interfaces.TokenRepository, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "token-repository"})
+// ============================================================================
+// Memory Repository Providers (Fast in-memory operations)
+// ============================================================================
 
-	repo, err := repositories.NewJSONTokenRepository(cfg.Storage.DataFolder)
+// NewMemoryAccountRepository creates a new in-memory account repository
+func NewMemoryAccountRepository(appLogger sctx.Logger) authinterfaces.AccountRepository {
+	return authrepos.NewMemoryAccountRepository(appLogger)
+}
+
+// NewMemoryTokenRepository creates a new in-memory token repository
+func NewMemoryTokenRepository(appLogger sctx.Logger) authinterfaces.TokenRepository {
+	return authrepos.NewMemoryTokenRepository(appLogger)
+}
+
+// NewMemorySessionRepository creates a new in-memory session repository
+func NewMemorySessionRepository(appLogger sctx.Logger) authinterfaces.SessionRepository {
+	return authrepos.NewMemorySessionRepository(appLogger)
+}
+
+// ============================================================================
+// JSON Repository Providers (Persistent storage)
+// ============================================================================
+
+// NewJSONAccountRepository creates a new JSON account repository
+func NewJSONAccountRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.AccountRepository, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "json-account-repository"})
+
+	repo, err := authrepos.NewJSONAccountRepository(cfg.Storage.DataFolder)
 	if err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create token repository")
-		return nil, fmt.Errorf("failed to create token repository: %w", err)
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create JSON account repository")
+		return nil, fmt.Errorf("failed to create JSON account repository: %w", err)
 	}
 
-	logger.Info("Token repository initialized successfully")
+	logger.Info("JSON account repository initialized successfully")
 	return repo, nil
 }
 
-// NewAccountRepository creates a new JSON account repository
-func NewAccountRepository(cfg *config.Config, appLogger sctx.Logger) (interfaces.AccountRepository, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "account-repository"})
+// NewJSONTokenRepository creates a new JSON token repository
+func NewJSONTokenRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.TokenRepository, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "json-token-repository"})
 
-	repo, err := repositories.NewJSONAccountRepository(cfg.Storage.DataFolder)
+	repo, err := authrepos.NewJSONTokenRepository(cfg.Storage.DataFolder)
 	if err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create account repository")
-		return nil, fmt.Errorf("failed to create account repository: %w", err)
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create JSON token repository")
+		return nil, fmt.Errorf("failed to create JSON token repository: %w", err)
 	}
 
-	logger.Info("Account repository initialized successfully")
+	logger.Info("JSON token repository initialized successfully")
 	return repo, nil
 }
+
+// NewJSONSessionRepository creates a new JSON session repository
+func NewJSONSessionRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.SessionRepository, error) {
+	if !cfg.Session.Enabled {
+		appLogger.Info("Session limiting disabled, skipping JSON session repository")
+		return nil, nil
+	}
+
+	logger := appLogger.Withs(sctx.Fields{"component": "json-session-repository"})
+
+	repo, err := authrepos.NewJSONSessionRepository(cfg.Storage.DataFolder, appLogger)
+	if err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create JSON session repository")
+		return nil, fmt.Errorf("failed to create JSON session repository: %w", err)
+	}
+
+	logger.Info("JSON session repository initialized successfully")
+	return repo, nil
+}
+
+// ============================================================================
+// Service Providers (Hybrid storage - inject both memory and JSON repos)
+// ============================================================================
+
+// NewTokenService creates a new token service with hybrid storage
+func NewTokenService(
+	memoryRepo authinterfaces.TokenRepository,
+	jsonRepo authinterfaces.TokenRepository,
+	appLogger sctx.Logger,
+) authinterfaces.TokenService {
+	return authservices.NewTokenService(memoryRepo, jsonRepo, appLogger)
+}
+
+// NewAccountService creates a new account service with hybrid storage
+func NewAccountService(
+	memoryRepo authinterfaces.AccountRepository,
+	jsonRepo authinterfaces.AccountRepository,
+	oauthService *oauth.Service,
+	appLogger sctx.Logger,
+) authinterfaces.AccountService {
+	return authservices.NewAccountService(memoryRepo, jsonRepo, oauthService, appLogger)
+}
+
+// NewSessionService creates a new session service with hybrid storage
+func NewSessionService(
+	memoryRepo authinterfaces.SessionRepository,
+	jsonRepo authinterfaces.SessionRepository,
+	cfg *config.Config,
+	appLogger sctx.Logger,
+) authinterfaces.SessionService {
+	return authservices.NewSessionService(memoryRepo, jsonRepo, cfg, appLogger)
+}
+
+// NewProxyService creates a new proxy service (only injects auth services)
+func NewProxyService(
+	accountSvc authinterfaces.AccountService,
+	claudeClient *clients.ClaudeAPIClient,
+	sessionSvc authinterfaces.SessionService,
+	appLogger sctx.Logger,
+) proxyinterfaces.ProxyService {
+	logger := appLogger.Withs(sctx.Fields{"component": "proxy-service"})
+	return proxyservices.NewProxyService(accountSvc, claudeClient, sessionSvc, logger)
+}
+
+// ============================================================================
+// Infrastructure - Clients
+// ============================================================================
 
 // NewClaudeAPIClient creates a new Claude API client
 func NewClaudeAPIClient(cfg *config.Config, appLogger sctx.Logger) *clients.ClaudeAPIClient {
@@ -307,90 +405,72 @@ func NewClaudeAPIClient(cfg *config.Config, appLogger sctx.Logger) *clients.Clau
 	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL, cfg.Server.RequestTimeout, logger)
 }
 
-// NewTokenService creates a new token service
-func NewTokenService(tokenRepo interfaces.TokenRepository) interfaces.TokenService {
-	return services.NewTokenService(tokenRepo)
-}
+// ============================================================================
+// Job Providers
+// ============================================================================
 
-// NewAccountService creates a new account service
-func NewAccountService(
-	accountRepo interfaces.AccountRepository,
-	oauthService *oauth.Service,
-	appLogger sctx.Logger,
-) interfaces.AccountService {
-	logger := appLogger.Withs(sctx.Fields{"component": "account-service"})
-
-	// Create adapter for token refresh
-	refresher := &oauthRefreshAdapter{oauthService: oauthService}
-
-	return services.NewAccountService(accountRepo, refresher, logger)
-}
-
-// NewProxyService creates a new proxy service
-func NewProxyService(
-	accountRepo interfaces.AccountRepository,
-	accountSvc interfaces.AccountService,
-	claudeClient *clients.ClaudeAPIClient,
-	sessionSvc interfaces.SessionService,
-	appLogger sctx.Logger,
-) interfaces.ProxyService {
-	logger := appLogger.Withs(sctx.Fields{"component": "proxy-service"})
-	return services.NewProxyService(accountRepo, accountSvc, claudeClient, sessionSvc, logger)
-}
-
-// NewTokenHandler creates a new token handler
-func NewTokenHandler(tokenService interfaces.TokenService) *handlers.TokenHandler {
-	return handlers.NewTokenHandler(tokenService)
-}
-
-// NewProxyHandler creates a new proxy handler
-func NewProxyHandler(proxyService interfaces.ProxyService) *handlers.ProxyHandler {
-	return handlers.NewProxyHandler(proxyService)
-}
-
-// NewAuthHandler creates a new auth handler
-func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
-	return handlers.NewAuthHandler(cfg)
-}
-
-// NewAccountHandler creates a new account handler
-func NewAccountHandler(
-	accountService interfaces.AccountService,
-	accountRepo interfaces.AccountRepository,
-) *handlers.AccountHandler {
-	return handlers.NewAccountHandler(accountService, accountRepo)
-}
-
-// NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(
-	oauthService *oauth.Service,
-	accountRepo interfaces.AccountRepository,
-	accountSvc interfaces.AccountService,
+// NewSyncScheduler creates a new sync scheduler for hybrid storage
+func NewSyncScheduler(
+	accountService authinterfaces.AccountService,
+	tokenService authinterfaces.TokenService,
+	sessionService authinterfaces.SessionService,
 	cfg *config.Config,
-) *handlers.OAuthHandler {
-	return handlers.NewOAuthHandler(oauthService, accountRepo, accountSvc, cfg.Claude.BaseURL)
+	appLogger sctx.Logger,
+) *authjobs.SyncScheduler {
+	// Default sync interval: 1 minute
+	syncInterval := 1 * time.Minute
+	if cfg.Storage.SyncInterval > 0 {
+		syncInterval = cfg.Storage.SyncInterval
+	}
+
+	return authjobs.NewSyncScheduler(
+		accountService,
+		tokenService,
+		sessionService,
+		syncInterval,
+		appLogger,
+	)
 }
 
-// NewStatisticsHandler creates a new statistics handler
-func NewStatisticsHandler(
-	accountService interfaces.AccountService,
-	appLogger sctx.Logger,
-) *handlers.StatisticsHandler {
-	logger := appLogger.Withs(sctx.Fields{"component": "statistics-handler"})
-	return handlers.NewStatisticsHandler(accountService, logger)
+// StartSyncScheduler starts the sync scheduler with lifecycle management
+func StartSyncScheduler(
+	lc fx.Lifecycle,
+	scheduler *authjobs.SyncScheduler,
+	logger sctx.Logger,
+) error {
+	if err := scheduler.Start(); err != nil {
+		return err
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			logger.Info("Performing final sync before shutdown")
+			scheduler.Stop()
+			if err := scheduler.FinalSync(); err != nil {
+				logger.Withs(sctx.Fields{"error": err}).Error("Final sync failed")
+				return err
+			}
+			return nil
+		},
+	})
+
+	return nil
 }
 
 // NewTokenRefreshScheduler creates a new token refresh scheduler
 func NewTokenRefreshScheduler(
-	accountRepo interfaces.AccountRepository,
-	accountSvc interfaces.AccountService,
+	accountSvc authinterfaces.AccountService,
 	logger sctx.Logger,
-) *jobs.Scheduler {
-	return jobs.NewScheduler(accountRepo, accountSvc, logger)
+) *proxyjobs.Scheduler {
+	return proxyjobs.NewScheduler(accountSvc, logger)
 }
 
 // StartTokenRefreshScheduler starts the token refresh scheduler with lifecycle management
-func StartTokenRefreshScheduler(lc fx.Lifecycle, scheduler *jobs.Scheduler, logger sctx.Logger) error {
+func StartTokenRefreshScheduler(
+	lc fx.Lifecycle,
+	scheduler *proxyjobs.Scheduler,
+	logger sctx.Logger,
+) error {
 	if err := scheduler.Start(); err != nil {
 		return err
 	}
@@ -406,62 +486,24 @@ func StartTokenRefreshScheduler(lc fx.Lifecycle, scheduler *jobs.Scheduler, logg
 	return nil
 }
 
-// NewSessionRepository creates a new session repository (JSON persistence)
-func NewSessionRepository(
-	cfg *config.Config,
-	appLogger sctx.Logger,
-) interfaces.SessionRepository {
-	if !cfg.Session.Enabled {
-		appLogger.Info("Session limiting disabled, skipping session repository initialization")
-		return nil
-	}
-
-	// Use JSON file storage for sessions (consistent with accounts and tokens)
-	repo, err := repositories.NewJSONSessionRepository(cfg.Storage.DataFolder, appLogger)
-	if err != nil {
-		appLogger.Withs(sctx.Fields{"error": err}).Fatal("Failed to create session repository")
-		return nil
-	}
-
-	return repo
-}
-
-// NewSessionService creates a new session service
-func NewSessionService(
-	sessionRepo interfaces.SessionRepository,
-	cfg *config.Config,
-	appLogger sctx.Logger,
-) interfaces.SessionService {
-	// Always create service, it checks cfg.Session.Enabled internally
-	return services.NewSessionService(sessionRepo, cfg, appLogger)
-}
-
-// NewSessionHandler creates a new session handler
-func NewSessionHandler(
-	sessionService interfaces.SessionService,
-	appLogger sctx.Logger,
-) *handlers.SessionHandler {
-	return handlers.NewSessionHandler(sessionService, appLogger)
-}
-
 // NewSessionCleanupScheduler creates a session cleanup scheduler
 func NewSessionCleanupScheduler(
-	sessionService interfaces.SessionService,
+	sessionService authinterfaces.SessionService,
 	cfg *config.Config,
 	logger sctx.Logger,
-) *jobs.SessionCleanupScheduler {
+) *authjobs.SessionCleanupScheduler {
 	if !cfg.Session.Enabled || !cfg.Session.CleanupEnabled {
 		logger.Info("Session cleanup disabled")
 		return nil
 	}
 
-	return jobs.NewSessionCleanupScheduler(sessionService, cfg, logger)
+	return authjobs.NewSessionCleanupScheduler(sessionService, cfg, logger)
 }
 
 // StartSessionCleanupScheduler starts the session cleanup scheduler with lifecycle management
 func StartSessionCleanupScheduler(
 	lc fx.Lifecycle,
-	scheduler *jobs.SessionCleanupScheduler,
+	scheduler *authjobs.SessionCleanupScheduler,
 	cfg *config.Config,
 	logger sctx.Logger,
 ) error {
@@ -483,4 +525,56 @@ func StartSessionCleanupScheduler(
 	})
 
 	return nil
+}
+
+// ============================================================================
+// Handler Providers
+// ============================================================================
+
+// NewTokenHandler creates a new token handler
+func NewTokenHandler(tokenService authinterfaces.TokenService) *handlers.TokenHandler {
+	return handlers.NewTokenHandler(tokenService)
+}
+
+// NewProxyHandler creates a new proxy handler
+func NewProxyHandler(proxyService proxyinterfaces.ProxyService) *handlers.ProxyHandler {
+	return handlers.NewProxyHandler(proxyService)
+}
+
+// NewAuthHandler creates a new auth handler
+func NewAuthHandler(cfg *config.Config) *handlers.AuthHandler {
+	return handlers.NewAuthHandler(cfg)
+}
+
+// NewAccountHandler creates a new account handler
+func NewAccountHandler(
+	accountService authinterfaces.AccountService,
+) *handlers.AccountHandler {
+	return handlers.NewAccountHandler(accountService)
+}
+
+// NewOAuthHandler creates a new OAuth handler
+func NewOAuthHandler(
+	oauthService *oauth.Service,
+	accountSvc authinterfaces.AccountService,
+	cfg *config.Config,
+) *handlers.OAuthHandler {
+	return handlers.NewOAuthHandler(oauthService, accountSvc, cfg.Claude.BaseURL)
+}
+
+// NewStatisticsHandler creates a new statistics handler
+func NewStatisticsHandler(
+	accountService authinterfaces.AccountService,
+	appLogger sctx.Logger,
+) *handlers.StatisticsHandler {
+	logger := appLogger.Withs(sctx.Fields{"component": "statistics-handler"})
+	return handlers.NewStatisticsHandler(accountService, logger)
+}
+
+// NewSessionHandler creates a new session handler
+func NewSessionHandler(
+	sessionService authinterfaces.SessionService,
+	appLogger sctx.Logger,
+) *handlers.SessionHandler {
+	return handlers.NewSessionHandler(sessionService, appLogger)
 }

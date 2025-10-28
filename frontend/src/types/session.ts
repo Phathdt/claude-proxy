@@ -1,9 +1,9 @@
 /**
- * Session entity representing an active user session
+ * Session entity representing an active client session
+ * Sessions track concurrent requests per client (IP + User-Agent)
  */
 export interface Session {
   id: string;
-  accountId: string;
   tokenId: string;
   userAgent: string;
   ipAddress: string;
@@ -23,27 +23,9 @@ export interface ListSessionsResponse {
 }
 
 /**
- * Response from list account sessions endpoint
- */
-export interface ListAccountSessionsResponse {
-  accountId: string;
-  sessions: Session[];
-  total: number;
-}
-
-/**
  * Response from revoke session endpoint
  */
 export interface RevokeSessionResponse {
-  sessionId: string;
-  message: string;
-}
-
-/**
- * Response from revoke account sessions endpoint
- */
-export interface RevokeAccountSessionsResponse {
-  accountId: string;
-  revokedCount: number;
+  success: boolean;
   message: string;
 }

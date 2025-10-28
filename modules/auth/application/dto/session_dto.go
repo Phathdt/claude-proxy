@@ -3,7 +3,6 @@ package dto
 // SessionResponse represents a session in API responses
 type SessionResponse struct {
 	ID          string `json:"id"`
-	AccountID   string `json:"account_id"`
 	TokenID     string `json:"token_id"`
 	UserAgent   string `json:"user_agent"`
 	IPAddress   string `json:"ip_address"`
@@ -29,11 +28,4 @@ type RevokeSessionRequest struct {
 type RevokeSessionResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
-}
-
-// RevokeAccountSessionsResponse represents a response to account session revocation
-type RevokeAccountSessionsResponse struct {
-	Success      bool   `json:"success"`
-	Message      string `json:"message"`
-	RevokedCount int    `json:"revoked_count"`
 }

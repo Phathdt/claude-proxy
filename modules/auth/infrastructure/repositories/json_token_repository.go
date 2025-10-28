@@ -2,8 +2,6 @@ package repositories
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,8 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/entities"
+	"claude-proxy/modules/auth/domain/interfaces"
+
+	"github.com/google/uuid"
 )
 
 // TokenDTO represents the JSON structure for token persistence
@@ -70,9 +70,9 @@ func (r *JSONTokenRepository) Create(ctx context.Context, token *entities.Token)
 		}
 	}
 
-	// Generate ID if not set
+	// Generate ID if not set (should never happen, but defensive)
 	if token.ID == "" {
-		token.ID = generateID()
+		token.ID = uuid.Must(uuid.NewV7()).String()
 	}
 
 	r.tokens[token.ID] = token
@@ -240,13 +240,6 @@ func dtoToEntity(dto *TokenDTO) *entities.Token {
 	}
 
 	return token
-}
-
-// generateID generates a random ID
-func generateID() string {
-	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
 }
 
 // expandPath expands ~ to home directory

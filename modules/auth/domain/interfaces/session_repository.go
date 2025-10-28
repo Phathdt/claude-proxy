@@ -3,7 +3,7 @@ package interfaces
 import (
 	"context"
 
-	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/auth/domain/entities"
 )
 
 // SessionRepository defines the interface for session persistence operations
@@ -14,9 +14,6 @@ type SessionRepository interface {
 	// GetSession retrieves a session by ID
 	GetSession(ctx context.Context, sessionID string) (*entities.Session, error)
 
-	// ListSessionsByAccount retrieves all active sessions for an account
-	ListSessionsByAccount(ctx context.Context, accountID string) ([]*entities.Session, error)
-
 	// ListSessionsByToken retrieves all active sessions for a token
 	ListSessionsByToken(ctx context.Context, tokenID string) ([]*entities.Session, error)
 
@@ -26,11 +23,8 @@ type SessionRepository interface {
 	// DeleteSession deletes a session by ID
 	DeleteSession(ctx context.Context, sessionID string) error
 
-	// DeleteSessionsByAccount deletes all sessions for an account
-	DeleteSessionsByAccount(ctx context.Context, accountID string) error
-
-	// CountActiveSessions counts active sessions for an account
-	CountActiveSessions(ctx context.Context, accountID string) (int, error)
+	// CountActiveSessions counts total active sessions globally
+	CountActiveSessions(ctx context.Context) (int, error)
 
 	// CleanupExpiredSessions removes expired sessions
 	CleanupExpiredSessions(ctx context.Context) (int, error)

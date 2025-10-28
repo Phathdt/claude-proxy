@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/interfaces"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/phathdt/service-context"

@@ -11,7 +11,7 @@ import (
 
 	"claude-proxy/cmd/api/handlers"
 	"claude-proxy/config"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/interfaces"
 	"claude-proxy/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -95,8 +95,6 @@ func StartAPIServer(
 			accounts.GET("/:id", accountHandler.GetAccount)
 			accounts.PUT("/:id", accountHandler.UpdateAccount)
 			accounts.DELETE("/:id", accountHandler.DeleteAccount)
-			accounts.GET("/:id/sessions", sessionHandler.ListAccountSessions)
-			accounts.DELETE("/:id/sessions", sessionHandler.RevokeAccountSessions)
 		}
 
 		// Admin routes (protected with API key)

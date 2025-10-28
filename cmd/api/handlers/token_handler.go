@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"claude-proxy/modules/proxy/application/dto"
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/application/dto"
+	"claude-proxy/modules/auth/domain/entities"
+	"claude-proxy/modules/auth/domain/interfaces"
 
 	"github.com/gin-gonic/gin"
 )
@@ -46,7 +46,7 @@ func (h *TokenHandler) ListTokens(c *gin.Context) {
 func (h *TokenHandler) GetToken(c *gin.Context) {
 	id := c.Param("id")
 
-	token, err := h.tokenService.GetToken(c.Request.Context(), id)
+	token, err := h.tokenService.GetTokenByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": gin.H{
@@ -76,6 +76,7 @@ func (h *TokenHandler) CreateToken(c *gin.Context) {
 		return
 	}
 
+	// Call service to create token
 	token, err := h.tokenService.CreateToken(
 		c.Request.Context(),
 		req.Name,
@@ -115,6 +116,7 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 		return
 	}
 
+	// Call service to update token
 	token, err := h.tokenService.UpdateToken(
 		c.Request.Context(),
 		id,
@@ -123,9 +125,9 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 		entities.TokenStatus(req.Status),
 	)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
-				"type":    "not_found_error",
+				"type":    "invalid_request_error",
 				"message": err.Error(),
 			},
 		})
@@ -157,24 +159,5 @@ func (h *TokenHandler) DeleteToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Token deleted successfully",
-	})
-}
-
-// GenerateKey generates a random API key
-// POST /api/tokens/generate-key
-func (h *TokenHandler) GenerateKey(c *gin.Context) {
-	key, err := h.tokenService.GenerateKey()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
-				"type":    "internal_error",
-				"message": "Failed to generate key",
-			},
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"key": key,
 	})
 }

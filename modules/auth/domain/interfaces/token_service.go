@@ -3,16 +3,19 @@ package interfaces
 import (
 	"context"
 
-	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/auth/domain/entities"
 )
 
 // TokenService defines the interface for token management operations
 type TokenService interface {
-	// CreateToken creates a new API token
+	// CreateToken creates a new token
 	CreateToken(ctx context.Context, name, key string, status entities.TokenStatus) (*entities.Token, error)
 
-	// GetToken retrieves a token by ID
-	GetToken(ctx context.Context, id string) (*entities.Token, error)
+	// GetTokenByID retrieves a token by ID
+	GetTokenByID(ctx context.Context, id string) (*entities.Token, error)
+
+	// GetTokenByKey retrieves a token by its key
+	GetTokenByKey(ctx context.Context, key string) (*entities.Token, error)
 
 	// ListTokens retrieves all tokens
 	ListTokens(ctx context.Context) ([]*entities.Token, error)
@@ -20,12 +23,15 @@ type TokenService interface {
 	// UpdateToken updates an existing token
 	UpdateToken(ctx context.Context, id, name, key string, status entities.TokenStatus) (*entities.Token, error)
 
-	// DeleteToken deletes a token
+	// DeleteToken deletes a token by ID
 	DeleteToken(ctx context.Context, id string) error
 
-	// ValidateToken validates a token and increments usage
+	// ValidateToken validates a token key and returns the token if valid
 	ValidateToken(ctx context.Context, key string) (*entities.Token, error)
 
-	// GenerateKey generates a random API key
-	GenerateKey() (string, error)
+	// Sync syncs in-memory data to persistent storage
+	Sync(ctx context.Context) error
+
+	// FinalSync performs final sync on shutdown
+	FinalSync(ctx context.Context) error
 }

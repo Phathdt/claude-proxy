@@ -60,7 +60,8 @@ type ClaudeConfig struct {
 
 // StorageConfig holds data storage configuration
 type StorageConfig struct {
-	DataFolder string `yaml:"data_folder" mapstructure:"data_folder"`
+	DataFolder   string        `yaml:"data_folder"   mapstructure:"data_folder"`
+	SyncInterval time.Duration `yaml:"sync_interval" mapstructure:"sync_interval"`
 }
 
 // RetryConfig holds retry logic configuration

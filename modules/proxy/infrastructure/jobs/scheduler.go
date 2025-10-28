@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/interfaces"
 
 	sctx "github.com/phathdt/service-context"
 	"github.com/robfig/cron/v3"
@@ -13,25 +13,22 @@ import (
 
 // Scheduler manages in-memory job scheduling with cron
 type Scheduler struct {
-	cron        *cron.Cron
-	accountRepo interfaces.AccountRepository
-	accountSvc  interfaces.AccountService
-	logger      sctx.Logger
-	mu          sync.Mutex
-	running     bool
+	cron       *cron.Cron
+	accountSvc interfaces.AccountService
+	logger     sctx.Logger
+	mu         sync.Mutex
+	running    bool
 }
 
 // NewScheduler creates a new in-memory scheduler
 func NewScheduler(
-	accountRepo interfaces.AccountRepository,
 	accountSvc interfaces.AccountService,
 	logger sctx.Logger,
 ) *Scheduler {
 	return &Scheduler{
-		cron:        cron.New(),
-		accountRepo: accountRepo,
-		accountSvc:  accountSvc,
-		logger:      logger,
+		cron:       cron.New(),
+		accountSvc: accountSvc,
+		logger:     logger,
 	}
 }
 
@@ -96,75 +93,20 @@ func (s *Scheduler) RefreshTokensJob() {
 		}).Info("Recovered rate limited accounts")
 	}
 
-	// Step 2: Refresh active accounts (existing logic)
-	accounts, err := s.accountRepo.GetActiveAccounts(ctx)
+	// Step 2: Refresh active accounts using service method
+	refreshedCount, failedCount, skippedCount, err := s.accountSvc.RefreshAllAccounts(ctx)
 	if err != nil {
 		s.logger.Withs(sctx.Fields{
 			"error": err.Error(),
-		}).Error("Failed to get active accounts for token refresh")
+		}).Error("Failed to refresh accounts")
 		return
-	}
-
-	if len(accounts) == 0 {
-		s.logger.Debug("No active accounts to refresh")
-		return
-	}
-
-	refreshedCount := 0
-	failedCount := 0
-	skippedCount := 0
-
-	// Process each account
-	for _, account := range accounts {
-		// Check if token needs refresh (60s buffer)
-		if !account.NeedsRefresh() {
-			s.logger.Withs(sctx.Fields{
-				"account_id": account.ID,
-				"name":       account.Name,
-			}).Debug("Token does not need refresh, skipping")
-			skippedCount++
-			continue
-		}
-
-		s.logger.Withs(sctx.Fields{
-			"account_id": account.ID,
-			"name":       account.Name,
-		}).Debug("Refreshing account token")
-
-		// Try to refresh the token
-		_, err := s.accountSvc.GetValidToken(ctx, account.ID)
-		if err != nil {
-			s.logger.Withs(sctx.Fields{
-				"account_id": account.ID,
-				"name":       account.Name,
-				"error":      err.Error(),
-			}).Error("Failed to refresh account token")
-
-			// Update account with error state
-			account.UpdateRefreshError(err.Error())
-			if err := s.accountRepo.Update(ctx, account); err != nil {
-				s.logger.Withs(sctx.Fields{
-					"account_id": account.ID,
-					"error":      err.Error(),
-				}).Error("Failed to update account with refresh error")
-			}
-			failedCount++
-			continue
-		}
-
-		s.logger.Withs(sctx.Fields{
-			"account_id": account.ID,
-			"name":       account.Name,
-		}).Info("Account token refreshed successfully")
-		refreshedCount++
 	}
 
 	// Log summary
 	s.logger.Withs(sctx.Fields{
-		"total_accounts": len(accounts),
-		"refreshed":      refreshedCount,
-		"failed":         failedCount,
-		"skipped":        skippedCount,
-		"recovered":      recoveredCount,
+		"refreshed": refreshedCount,
+		"failed":    failedCount,
+		"skipped":   skippedCount,
+		"recovered": recoveredCount,
 	}).Info("Token refresh and recovery job completed")
 }

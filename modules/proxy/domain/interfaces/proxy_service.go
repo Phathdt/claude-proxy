@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/auth/domain/entities"
 )
 
 // ProxyService defines the interface for proxy operations

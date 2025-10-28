@@ -3,7 +3,7 @@ package interfaces
 import (
 	"context"
 
-	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/auth/domain/entities"
 )
 
 // AccountRepository defines the interface for app account persistence

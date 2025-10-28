@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"claude-proxy/modules/proxy/application/dto"
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/application/dto"
+	"claude-proxy/modules/auth/domain/entities"
+	"claude-proxy/modules/auth/domain/interfaces"
 	"claude-proxy/pkg/errors"
 
 	"github.com/gin-gonic/gin"
@@ -14,23 +14,20 @@ import (
 // AccountHandler handles HTTP requests for account management
 type AccountHandler struct {
 	accountService interfaces.AccountService
-	accountRepo    interfaces.AccountRepository
 }
 
 // NewAccountHandler creates a new account handler
 func NewAccountHandler(
 	accountService interfaces.AccountService,
-	accountRepo interfaces.AccountRepository,
 ) *AccountHandler {
 	return &AccountHandler{
 		accountService: accountService,
-		accountRepo:    accountRepo,
 	}
 }
 
 // ListAccounts handles GET /api/accounts
 func (h *AccountHandler) ListAccounts(c *gin.Context) {
-	accounts, err := h.accountRepo.List(c.Request.Context())
+	accounts, err := h.accountService.ListAccounts(c.Request.Context())
 	if err != nil {
 		panic(errors.NewInternalError("ACCOUNTS_LIST_FAILED", "Failed to list accounts", err.Error()))
 	}
@@ -49,7 +46,7 @@ func (h *AccountHandler) ListAccounts(c *gin.Context) {
 func (h *AccountHandler) GetAccount(c *gin.Context) {
 	id := c.Param("id")
 
-	account, err := h.accountRepo.GetByID(c.Request.Context(), id)
+	account, err := h.accountService.GetAccount(c.Request.Context(), id)
 	if err != nil {
 		panic(errors.NewNotFoundError("ACCOUNT_NOT_FOUND", "Account not found", id))
 	}
@@ -68,20 +65,18 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 		panic(errors.NewBadRequestError("INVALID_REQUEST", "Invalid request body", err.Error()))
 	}
 
-	account, err := h.accountRepo.GetByID(c.Request.Context(), id)
-	if err != nil {
-		panic(errors.NewNotFoundError("ACCOUNT_NOT_FOUND", "Account not found", id))
-	}
-
-	// Update fields
+	// Update using service method
+	var name string
 	if req.Name != nil {
-		account.Name = *req.Name
+		name = *req.Name
 	}
+	var status entities.AccountStatus
 	if req.Status != nil {
-		account.Status = entities.AccountStatus(*req.Status)
+		status = entities.AccountStatus(*req.Status)
 	}
 
-	if err := h.accountRepo.Update(c.Request.Context(), account); err != nil {
+	account, err := h.accountService.UpdateAccount(c.Request.Context(), id, name, status)
+	if err != nil {
 		panic(errors.NewInternalError("ACCOUNT_UPDATE_FAILED", "Failed to update account", err.Error()))
 	}
 
@@ -94,7 +89,7 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 func (h *AccountHandler) DeleteAccount(c *gin.Context) {
 	id := c.Param("id")
 
-	if err := h.accountRepo.Delete(c.Request.Context(), id); err != nil {
+	if err := h.accountService.DeleteAccount(c.Request.Context(), id); err != nil {
 		panic(errors.NewNotFoundError("ACCOUNT_NOT_FOUND", "Account not found", id))
 	}
 

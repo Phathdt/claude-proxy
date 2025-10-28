@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/entities"
+	"claude-proxy/modules/auth/domain/interfaces"
 
 	sctx "github.com/phathdt/service-context"
 )
@@ -19,7 +19,6 @@ import (
 type JSONSessionRepository struct {
 	filePath string
 	sessions map[string]*entities.Session // sessionID -> session
-	accounts map[string][]string          // accountID -> []sessionID
 	tokens   map[string][]string          // tokenID -> []sessionID
 	mu       sync.RWMutex
 	logger   sctx.Logger
@@ -39,7 +38,6 @@ func NewJSONSessionRepository(dataFolder string, appLogger sctx.Logger) (interfa
 	repo := &JSONSessionRepository{
 		filePath: filePath,
 		sessions: make(map[string]*entities.Session),
-		accounts: make(map[string][]string),
 		tokens:   make(map[string][]string),
 		logger:   logger,
 	}
@@ -77,12 +75,6 @@ func (r *JSONSessionRepository) load() error {
 	// Build indexes
 	for _, session := range sessions {
 		r.sessions[session.ID] = session
-
-		// Add to account index
-		if _, exists := r.accounts[session.AccountID]; !exists {
-			r.accounts[session.AccountID] = []string{}
-		}
-		r.accounts[session.AccountID] = append(r.accounts[session.AccountID], session.ID)
 
 		// Add to token index
 		if _, exists := r.tokens[session.TokenID]; !exists {
@@ -125,12 +117,6 @@ func (r *JSONSessionRepository) CreateSession(ctx context.Context, session *enti
 	// Store session
 	r.sessions[session.ID] = session
 
-	// Add to account index
-	if _, exists := r.accounts[session.AccountID]; !exists {
-		r.accounts[session.AccountID] = []string{}
-	}
-	r.accounts[session.AccountID] = append(r.accounts[session.AccountID], session.ID)
-
 	// Add to token index
 	if _, exists := r.tokens[session.TokenID]; !exists {
 		r.tokens[session.TokenID] = []string{}
@@ -145,7 +131,7 @@ func (r *JSONSessionRepository) CreateSession(ctx context.Context, session *enti
 
 	r.logger.Withs(sctx.Fields{
 		"session_id": session.ID,
-		"account_id": session.AccountID,
+		"token_id":   session.TokenID,
 	}).Debug("Session created and persisted")
 
 	return nil
@@ -162,49 +148,6 @@ func (r *JSONSessionRepository) GetSession(ctx context.Context, sessionID string
 	}
 
 	return session, nil
-}
-
-// ListSessionsByAccount retrieves all sessions for an account
-func (r *JSONSessionRepository) ListSessionsByAccount(
-	ctx context.Context,
-	accountID string,
-) ([]*entities.Session, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	sessionIDs, exists := r.accounts[accountID]
-	if !exists {
-		return []*entities.Session{}, nil
-	}
-
-	sessions := make([]*entities.Session, 0, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			sessions = append(sessions, session)
-		}
-	}
-
-	return sessions, nil
-}
-
-// ListSessionsByToken retrieves all sessions for a token
-func (r *JSONSessionRepository) ListSessionsByToken(ctx context.Context, tokenID string) ([]*entities.Session, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	sessionIDs, exists := r.tokens[tokenID]
-	if !exists {
-		return []*entities.Session{}, nil
-	}
-
-	sessions := make([]*entities.Session, 0, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			sessions = append(sessions, session)
-		}
-	}
-
-	return sessions, nil
 }
 
 // UpdateSession updates an existing session
@@ -224,7 +167,7 @@ func (r *JSONSessionRepository) UpdateSession(ctx context.Context, session *enti
 		return err
 	}
 
-	r.logger.Withs(sctx.Fields{"session_id": session.ID}).Debug("Session updated")
+	r.logger.Withs(sctx.Fields{"session_id": session.ID}).Debug("Session updated and persisted")
 	return nil
 }
 
@@ -241,12 +184,6 @@ func (r *JSONSessionRepository) DeleteSession(ctx context.Context, sessionID str
 	// Remove from sessions map
 	delete(r.sessions, sessionID)
 
-	// Remove from account index
-	r.accounts[session.AccountID] = r.removeFromSlice(r.accounts[session.AccountID], sessionID)
-	if len(r.accounts[session.AccountID]) == 0 {
-		delete(r.accounts, session.AccountID)
-	}
-
 	// Remove from token index
 	r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
 	if len(r.tokens[session.TokenID]) == 0 {
@@ -259,67 +196,20 @@ func (r *JSONSessionRepository) DeleteSession(ctx context.Context, sessionID str
 		return err
 	}
 
-	r.logger.Withs(sctx.Fields{"session_id": sessionID}).Debug("Session deleted")
+	r.logger.Withs(sctx.Fields{"session_id": sessionID}).Debug("Session deleted and persisted")
 	return nil
 }
 
-// DeleteSessionsByAccount removes all sessions for an account
-func (r *JSONSessionRepository) DeleteSessionsByAccount(ctx context.Context, accountID string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	sessionIDs, exists := r.accounts[accountID]
-	if !exists {
-		return nil
-	}
-
-	// Remove all sessions
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			delete(r.sessions, sessionID)
-
-			// Remove from token index
-			r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
-			if len(r.tokens[session.TokenID]) == 0 {
-				delete(r.tokens, session.TokenID)
-			}
-		}
-	}
-
-	// Remove account index
-	delete(r.accounts, accountID)
-
-	// Persist to file
-	if err := r.save(); err != nil {
-		r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions to file")
-		return err
-	}
-
-	r.logger.Withs(sctx.Fields{
-		"account_id": accountID,
-		"count":      len(sessionIDs),
-	}).Debug("Account sessions deleted")
-
-	return nil
-}
-
-// CountActiveSessions counts active (non-expired) sessions for an account
-func (r *JSONSessionRepository) CountActiveSessions(ctx context.Context, accountID string) (int, error) {
+// CountActiveSessions counts total active (non-expired) sessions globally
+func (r *JSONSessionRepository) CountActiveSessions(ctx context.Context) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	sessionIDs, exists := r.accounts[accountID]
-	if !exists {
-		return 0, nil
-	}
-
 	count := 0
 	now := time.Now()
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			if session.IsActive && now.Before(session.ExpiresAt) {
-				count++
-			}
+	for _, session := range r.sessions {
+		if session.IsActive && now.Before(session.ExpiresAt) {
+			count++
 		}
 	}
 
@@ -341,20 +231,10 @@ func (r *JSONSessionRepository) CleanupExpiredSessions(ctx context.Context) (int
 		}
 	}
 
-	if len(expiredSessions) == 0 {
-		return 0, nil
-	}
-
 	// Remove expired sessions
 	for _, sessionID := range expiredSessions {
 		session := r.sessions[sessionID]
 		delete(r.sessions, sessionID)
-
-		// Remove from account index
-		r.accounts[session.AccountID] = r.removeFromSlice(r.accounts[session.AccountID], sessionID)
-		if len(r.accounts[session.AccountID]) == 0 {
-			delete(r.accounts, session.AccountID)
-		}
 
 		// Remove from token index
 		r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
@@ -363,13 +243,16 @@ func (r *JSONSessionRepository) CleanupExpiredSessions(ctx context.Context) (int
 		}
 	}
 
-	// Persist to file
-	if err := r.save(); err != nil {
-		r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions to file")
-		return 0, err
+	// Persist to file if any sessions were cleaned up
+	if len(expiredSessions) > 0 {
+		if err := r.save(); err != nil {
+			r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions after cleanup")
+			return len(expiredSessions), err
+		}
+
+		r.logger.Withs(sctx.Fields{"count": len(expiredSessions)}).Debug("Expired sessions cleaned up and persisted")
 	}
 
-	r.logger.Withs(sctx.Fields{"count": len(expiredSessions)}).Debug("Expired sessions cleaned up")
 	return len(expiredSessions), nil
 }
 
@@ -381,6 +264,29 @@ func (r *JSONSessionRepository) ListAllSessions(ctx context.Context) ([]*entitie
 	sessions := make([]*entities.Session, 0, len(r.sessions))
 	for _, session := range r.sessions {
 		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
+// ListSessionsByToken retrieves all sessions for a token
+func (r *JSONSessionRepository) ListSessionsByToken(
+	ctx context.Context,
+	tokenID string,
+) ([]*entities.Session, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	sessionIDs, exists := r.tokens[tokenID]
+	if !exists {
+		return []*entities.Session{}, nil
+	}
+
+	sessions := make([]*entities.Session, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		if session, exists := r.sessions[sessionID]; exists {
+			sessions = append(sessions, session)
+		}
 	}
 
 	return sessions, nil

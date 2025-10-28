@@ -5,10 +5,9 @@ import (
 	"time"
 )
 
-// Session represents an active API session
+// Session represents an active API session (tracks concurrent requests per client)
 type Session struct {
 	ID          string    // Unique session identifier (UUID)
-	AccountID   string    // Associated account ID
 	TokenID     string    // API token used for this session
 	UserAgent   string    // User agent string
 	IPAddress   string    // Client IP address
@@ -44,7 +43,6 @@ func (s *Session) Deactivate() {
 func (s *Session) ToMap() map[string]interface{} {
 	return map[string]interface{}{
 		"id":           s.ID,
-		"account_id":   s.AccountID,
 		"token_id":     s.TokenID,
 		"user_agent":   s.UserAgent,
 		"ip_address":   s.IPAddress,
@@ -60,7 +58,6 @@ func (s *Session) ToMap() map[string]interface{} {
 func SessionFromMap(data map[string]string) *Session {
 	return &Session{
 		ID:          data["id"],
-		AccountID:   data["account_id"],
 		TokenID:     data["token_id"],
 		UserAgent:   data["user_agent"],
 		IPAddress:   data["ip_address"],

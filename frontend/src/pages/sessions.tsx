@@ -84,7 +84,7 @@ export default function SessionsPage() {
         <div>
           <h1 className="text-foreground text-3xl font-bold tracking-tight">Active Sessions</h1>
           <p className="text-muted-foreground">
-            Monitor and manage active sessions across all accounts
+            Monitor and manage active client sessions (per IP + User-Agent)
           </p>
         </div>
         <Button onClick={() => refetch()} disabled={isLoading}>
@@ -110,7 +110,7 @@ export default function SessionsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Session ID</TableHead>
-                  <TableHead>Account</TableHead>
+                  <TableHead>Token ID</TableHead>
                   <TableHead>IP Address</TableHead>
                   <TableHead>User Agent</TableHead>
                   <TableHead>Last Seen</TableHead>
@@ -129,7 +129,7 @@ export default function SessionsPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       <code className="bg-muted text-foreground rounded px-2 py-1">
-                        {session.accountId.substring(0, 8)}...
+                        {session.tokenId.substring(0, 8)}...
                       </code>
                     </TableCell>
                     <TableCell className="text-foreground text-sm">{session.ipAddress}</TableCell>

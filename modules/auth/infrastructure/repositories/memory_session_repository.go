@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/entities"
+	"claude-proxy/modules/auth/domain/interfaces"
 
 	sctx "github.com/phathdt/service-context"
 )
@@ -15,7 +15,6 @@ import (
 // MemorySessionRepository implements session repository with in-memory storage
 type MemorySessionRepository struct {
 	sessions map[string]*entities.Session // sessionID -> session
-	accounts map[string][]string          // accountID -> []sessionID
 	tokens   map[string][]string          // tokenID -> []sessionID
 	mu       sync.RWMutex
 	logger   sctx.Logger
@@ -27,7 +26,6 @@ func NewMemorySessionRepository(appLogger sctx.Logger) interfaces.SessionReposit
 
 	return &MemorySessionRepository{
 		sessions: make(map[string]*entities.Session),
-		accounts: make(map[string][]string),
 		tokens:   make(map[string][]string),
 		logger:   logger,
 	}
@@ -41,12 +39,6 @@ func (r *MemorySessionRepository) CreateSession(ctx context.Context, session *en
 	// Store session
 	r.sessions[session.ID] = session
 
-	// Add to account index
-	if _, exists := r.accounts[session.AccountID]; !exists {
-		r.accounts[session.AccountID] = []string{}
-	}
-	r.accounts[session.AccountID] = append(r.accounts[session.AccountID], session.ID)
-
 	// Add to token index
 	if _, exists := r.tokens[session.TokenID]; !exists {
 		r.tokens[session.TokenID] = []string{}
@@ -55,7 +47,7 @@ func (r *MemorySessionRepository) CreateSession(ctx context.Context, session *en
 
 	r.logger.Withs(sctx.Fields{
 		"session_id": session.ID,
-		"account_id": session.AccountID,
+		"token_id":   session.TokenID,
 	}).Debug("Session created in memory")
 
 	return nil
@@ -72,29 +64,6 @@ func (r *MemorySessionRepository) GetSession(ctx context.Context, sessionID stri
 	}
 
 	return session, nil
-}
-
-// ListSessionsByAccount retrieves all sessions for an account
-func (r *MemorySessionRepository) ListSessionsByAccount(
-	ctx context.Context,
-	accountID string,
-) ([]*entities.Session, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	sessionIDs, exists := r.accounts[accountID]
-	if !exists {
-		return []*entities.Session{}, nil
-	}
-
-	sessions := make([]*entities.Session, 0, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			sessions = append(sessions, session)
-		}
-	}
-
-	return sessions, nil
 }
 
 // UpdateSession updates an existing session
@@ -125,12 +94,6 @@ func (r *MemorySessionRepository) DeleteSession(ctx context.Context, sessionID s
 	// Remove from sessions map
 	delete(r.sessions, sessionID)
 
-	// Remove from account index
-	r.accounts[session.AccountID] = r.removeFromSlice(r.accounts[session.AccountID], sessionID)
-	if len(r.accounts[session.AccountID]) == 0 {
-		delete(r.accounts, session.AccountID)
-	}
-
 	// Remove from token index
 	r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
 	if len(r.tokens[session.TokenID]) == 0 {
@@ -141,57 +104,16 @@ func (r *MemorySessionRepository) DeleteSession(ctx context.Context, sessionID s
 	return nil
 }
 
-// DeleteSessionsByAccount removes all sessions for an account
-func (r *MemorySessionRepository) DeleteSessionsByAccount(ctx context.Context, accountID string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	sessionIDs, exists := r.accounts[accountID]
-	if !exists {
-		return nil
-	}
-
-	// Remove all sessions
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			delete(r.sessions, sessionID)
-
-			// Remove from token index
-			r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
-			if len(r.tokens[session.TokenID]) == 0 {
-				delete(r.tokens, session.TokenID)
-			}
-		}
-	}
-
-	// Remove account index
-	delete(r.accounts, accountID)
-
-	r.logger.Withs(sctx.Fields{
-		"account_id": accountID,
-		"count":      len(sessionIDs),
-	}).Debug("Account sessions deleted")
-
-	return nil
-}
-
-// CountActiveSessions counts active (non-expired) sessions for an account
-func (r *MemorySessionRepository) CountActiveSessions(ctx context.Context, accountID string) (int, error) {
+// CountActiveSessions counts total active (non-expired) sessions globally
+func (r *MemorySessionRepository) CountActiveSessions(ctx context.Context) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	sessionIDs, exists := r.accounts[accountID]
-	if !exists {
-		return 0, nil
-	}
-
 	count := 0
 	now := time.Now()
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			if session.IsActive && now.Before(session.ExpiresAt) {
-				count++
-			}
+	for _, session := range r.sessions {
+		if session.IsActive && now.Before(session.ExpiresAt) {
+			count++
 		}
 	}
 
@@ -217,12 +139,6 @@ func (r *MemorySessionRepository) CleanupExpiredSessions(ctx context.Context) (i
 	for _, sessionID := range expiredSessions {
 		session := r.sessions[sessionID]
 		delete(r.sessions, sessionID)
-
-		// Remove from account index
-		r.accounts[session.AccountID] = r.removeFromSlice(r.accounts[session.AccountID], sessionID)
-		if len(r.accounts[session.AccountID]) == 0 {
-			delete(r.accounts, session.AccountID)
-		}
 
 		// Remove from token index
 		r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)

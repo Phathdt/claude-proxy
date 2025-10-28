@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/entities"
+	"claude-proxy/modules/auth/domain/interfaces"
+
+	"github.com/google/uuid"
 )
 
 // AccountDTO represents the JSON structure for account persistence
@@ -71,9 +73,9 @@ func (r *JSONAccountRepository) Create(ctx context.Context, account *entities.Ac
 		}
 	}
 
-	// Generate ID if not set
+	// Generate ID if not set (should never happen, but defensive)
 	if account.ID == "" {
-		account.ID = generateAccountID()
+		account.ID = uuid.Must(uuid.NewV7()).String()
 	}
 
 	r.accounts[account.ID] = account
@@ -316,9 +318,4 @@ func accountDtoToEntity(dto *AccountDTO) *entities.Account {
 	}
 
 	return account
-}
-
-// generateAccountID generates a unique ID for an account
-func generateAccountID() string {
-	return fmt.Sprintf("app_%d", time.Now().UnixNano())
 }

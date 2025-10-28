@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/entities"
+	authinterfaces "claude-proxy/modules/auth/domain/interfaces"
+	proxyinterfaces "claude-proxy/modules/proxy/domain/interfaces"
 	"claude-proxy/modules/proxy/infrastructure/clients"
 
 	sctx "github.com/phathdt/service-context"
@@ -17,23 +18,20 @@ import (
 
 // ProxyService implements the proxy business logic
 type ProxyService struct {
-	accountRepo  interfaces.AccountRepository
-	accountSvc   interfaces.AccountService
+	accountSvc   authinterfaces.AccountService
 	claudeClient *clients.ClaudeAPIClient
-	sessionSvc   interfaces.SessionService
+	sessionSvc   authinterfaces.SessionService
 	logger       sctx.Logger
 }
 
 // NewProxyService creates a new proxy service
 func NewProxyService(
-	accountRepo interfaces.AccountRepository,
-	accountSvc interfaces.AccountService,
+	accountSvc authinterfaces.AccountService,
 	claudeClient *clients.ClaudeAPIClient,
-	sessionSvc interfaces.SessionService,
+	sessionSvc authinterfaces.SessionService,
 	logger sctx.Logger,
-) interfaces.ProxyService {
+) proxyinterfaces.ProxyService {
 	return &ProxyService{
-		accountRepo:  accountRepo,
 		accountSvc:   accountSvc,
 		claudeClient: claudeClient,
 		sessionSvc:   sessionSvc,
@@ -47,20 +45,13 @@ func (s *ProxyService) ProxyRequest(
 	token *entities.Token,
 	req *http.Request,
 ) (*http.Response, error) {
-	// Get valid account
-	account, err := s.GetValidAccount(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create session and check limits
-	session, err := s.sessionSvc.CreateSession(ctx, account.ID, token.ID, req)
+	// Create/reuse session and check global limits (per client IP + UserAgent)
+	session, err := s.sessionSvc.CreateSession(ctx, token.ID, req)
 	if err != nil {
 		// If session limit exceeded, return error
 		s.logger.Withs(sctx.Fields{
-			"error":      err.Error(),
-			"account_id": account.ID,
-			"token_id":   token.ID,
+			"error":    err.Error(),
+			"token_id": token.ID,
 		}).Warn("Session limit exceeded")
 		return nil, err
 	}
@@ -75,6 +66,18 @@ func (s *ProxyService) ProxyRequest(
 				}).Debug("Failed to refresh session")
 			}
 		}()
+	}
+
+	// Get valid account (dynamic selection with automatic failover)
+	account, err := s.GetValidAccount(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get valid access token (will refresh if needed)
+	accessToken, err := s.accountSvc.GetValidToken(ctx, account.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get valid access token: %w", err)
 	}
 
 	sessionID := ""
@@ -92,12 +95,6 @@ func (s *ProxyService) ProxyRequest(
 		"method":       req.Method,
 		"path":         req.URL.Path,
 	}).Info("Proxying request to Claude API")
-
-	// Get valid access token (will refresh if needed)
-	accessToken, err := s.accountSvc.GetValidToken(ctx, account.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get valid access token: %w", err)
-	}
 
 	// Read request body
 	var bodyBytes []byte
@@ -150,7 +147,7 @@ func (s *ProxyService) ProxyRequest(
 // Excludes: rate_limited (not expired), invalid, inactive
 func (s *ProxyService) GetValidAccount(ctx context.Context) (*entities.Account, error) {
 	// Get all accounts (not just active)
-	allAccounts, err := s.accountRepo.List(ctx)
+	allAccounts, err := s.accountSvc.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}

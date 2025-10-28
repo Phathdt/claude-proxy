@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/domain/interfaces"
 	"claude-proxy/pkg/errors"
 
 	"github.com/gin-gonic/gin"

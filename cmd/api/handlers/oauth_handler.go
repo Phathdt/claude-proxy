@@ -8,18 +8,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
-	"claude-proxy/modules/proxy/application/dto"
-	"claude-proxy/modules/proxy/domain/entities"
-	"claude-proxy/modules/proxy/domain/interfaces"
+	"claude-proxy/modules/auth/application/dto"
+	"claude-proxy/modules/auth/domain/interfaces"
 	"claude-proxy/pkg/oauth"
 )
 
 // OAuthHandler handles OAuth-related endpoints
 type OAuthHandler struct {
 	oauthService  *oauth.Service
-	accountRepo   interfaces.AccountRepository
 	accountSvc    interfaces.AccountService
 	claudeBaseURL string
 	challenges    map[string]*oauth.PKCEChallenge // state -> challenge
@@ -29,13 +26,11 @@ type OAuthHandler struct {
 // NewOAuthHandler creates a new OAuth handler
 func NewOAuthHandler(
 	oauthService *oauth.Service,
-	accountRepo interfaces.AccountRepository,
 	accountSvc interfaces.AccountService,
 	claudeBaseURL string,
 ) *OAuthHandler {
 	return &OAuthHandler{
 		oauthService:  oauthService,
-		accountRepo:   accountRepo,
 		accountSvc:    accountSvc,
 		claudeBaseURL: claudeBaseURL,
 		challenges:    make(map[string]*oauth.PKCEChallenge),
@@ -138,56 +133,13 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Exchange code for tokens
-	tokenResp, err := h.oauthService.ExchangeCodeForToken(ctx, req.Code, req.CodeVerifier)
+	// Use AccountService to create account (handles OAuth exchange and org UUID fetch)
+	acc, err := h.accountSvc.CreateAccount(ctx, req.Name, req.Code)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"type":    "oauth_error",
-				"message": fmt.Sprintf("Failed to exchange code for token: %v", err),
-			},
-		})
-		return
-	}
-
-	// Get organization UUID (use provided or fetch from API)
-	var orgUUID string
-	if req.OrgID != "" {
-		orgUUID = req.OrgID
-	} else {
-		orgUUID, err = h.oauthService.GetOrganizationUUID(ctx, tokenResp.AccessToken, h.claudeBaseURL)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{
-					"type":    "oauth_error",
-					"message": fmt.Sprintf("Failed to get organization UUID: %v", err),
-				},
-			})
-			return
-		}
-	}
-
-	// Create account entity
-	now := time.Now()
-	acc := &entities.Account{
-		ID:               uuid.New().String(),
-		Name:             req.Name,
-		OrganizationUUID: orgUUID,
-		AccessToken:      tokenResp.AccessToken,
-		RefreshToken:     tokenResp.RefreshToken,
-		ExpiresAt:        time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
-		RefreshAt:        now,
-		Status:           entities.AccountStatusActive,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-	}
-
-	// Save to repository
-	if err := h.accountRepo.Create(ctx, acc); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
-				"type":    "oauth_error",
-				"message": fmt.Sprintf("Failed to save account: %v", err),
+				"message": fmt.Sprintf("Failed to create account: %v", err),
 			},
 		})
 		return

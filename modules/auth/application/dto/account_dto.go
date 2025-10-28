@@ -1,6 +1,6 @@
 package dto
 
-import "claude-proxy/modules/proxy/domain/entities"
+import "claude-proxy/modules/auth/domain/entities"
 
 // CreateAccountRequest represents the request to create an account
 type CreateAccountRequest struct {

@@ -4,16 +4,16 @@ import (
 	"context"
 	"net/http"
 
-	"claude-proxy/modules/proxy/domain/entities"
+	"claude-proxy/modules/auth/domain/entities"
 )
 
 // SessionService defines the interface for session management operations
+// Sessions track concurrent requests per client (IP + UserAgent)
 type SessionService interface {
-	// CreateSession creates a new session and checks limits
+	// CreateSession creates a new session and checks global limits
 	// Returns error if concurrent session limit is exceeded
 	CreateSession(
 		ctx context.Context,
-		accountID string,
 		tokenID string,
 		req *http.Request,
 	) (*entities.Session, error)
@@ -36,21 +36,15 @@ type SessionService interface {
 		sessionID string,
 	) error
 
-	// RevokeAccountSessions revokes all sessions for an account
-	RevokeAccountSessions(
-		ctx context.Context,
-		accountID string,
-	) (int, error)
-
-	// GetAccountSessions retrieves all active sessions for an account
-	GetAccountSessions(
-		ctx context.Context,
-		accountID string,
-	) ([]*entities.Session, error)
-
 	// GetAllSessions retrieves all active sessions (admin)
 	GetAllSessions(ctx context.Context) ([]*entities.Session, error)
 
 	// CleanupExpiredSessions removes expired sessions
 	CleanupExpiredSessions(ctx context.Context) (int, error)
+
+	// Sync syncs in-memory data to persistent storage
+	Sync(ctx context.Context) error
+
+	// FinalSync performs final sync on graceful shutdown
+	FinalSync(ctx context.Context) error
 }
