@@ -49,8 +49,21 @@ func (s *SyncScheduler) Start() error {
 	}).Info("Starting sync scheduler")
 
 	// Convert interval to cron expression
-	// For simplicity, use @every syntax
-	cronExpr := "@every " + s.interval.String()
+	// Use cron syntax to run at exact minute boundaries (at :00 seconds)
+	// Examples:
+	//   1 minute  -> "* * * * *"   (every minute)
+	//   5 minutes -> "*/5 * * * *" (every 5 minutes)
+	//   Other     -> "@every Xm"   (interval-based fallback)
+	var cronExpr string
+	if s.interval == 1*time.Minute {
+		cronExpr = "* * * * *" // Every minute at :00 seconds
+	} else if s.interval == 5*time.Minute {
+		cronExpr = "*/5 * * * *" // Every 5 minutes at :00 seconds
+	} else if s.interval == 10*time.Minute {
+		cronExpr = "*/10 * * * *" // Every 10 minutes at :00 seconds
+	} else {
+		cronExpr = "@every " + s.interval.String() // Fallback for custom intervals
+	}
 
 	_, err := s.cron.AddFunc(cronExpr, func() {
 		s.mu.Lock()
@@ -64,7 +77,9 @@ func (s *SyncScheduler) Start() error {
 	}
 
 	s.cron.Start()
-	s.logger.Info("Sync scheduler started")
+	s.logger.Withs(sctx.Fields{
+		"schedule": cronExpr,
+	}).Info("Sync scheduler started")
 
 	return nil
 }

@@ -6,9 +6,9 @@ type SessionResponse struct {
 	TokenID     string `json:"token_id"`
 	UserAgent   string `json:"user_agent"`
 	IPAddress   string `json:"ip_address"`
-	CreatedAt   int64  `json:"created_at"`
-	LastSeenAt  int64  `json:"last_seen_at"`
-	ExpiresAt   int64  `json:"expires_at"`
+	CreatedAt   string `json:"created_at"`   // RFC3339/ISO 8601 datetime
+	LastSeenAt  string `json:"last_seen_at"` // RFC3339/ISO 8601 datetime
+	ExpiresAt   string `json:"expires_at"`   // RFC3339/ISO 8601 datetime
 	IsActive    bool   `json:"is_active"`
 	RequestPath string `json:"request_path"`
 }

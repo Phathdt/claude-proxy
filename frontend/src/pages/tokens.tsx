@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Dialog } from '@/components/ui/dialog'
 import { useTokens, useDeleteToken } from '@/hooks/use-tokens'
 import { TokenFormModal } from '@/components/tokens/token-form-modal'
 import type { Token } from '@/types/token'
@@ -21,6 +22,7 @@ export function TokensPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingToken, setEditingToken] = useState<Token | undefined>()
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [tokenToDelete, setTokenToDelete] = useState<string | null>(null)
 
   const handleCreate = () => {
     setEditingToken(undefined)
@@ -32,9 +34,17 @@ export function TokensPage() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this token?')) {
-      await deleteMutation.mutateAsync(id)
+  const handleDeleteClick = (id: string) => {
+    setTokenToDelete(id)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!tokenToDelete) return
+    try {
+      await deleteMutation.mutateAsync(tokenToDelete)
+      setTokenToDelete(null)
+    } catch (error) {
+      console.error('Failed to delete token:', error)
     }
   }
 
@@ -117,7 +127,7 @@ export function TokensPage() {
                     <TableCell>{token.usageCount.toLocaleString()}</TableCell>
                     <TableCell className="text-foreground/70 text-sm">
                       {token.lastUsedAt
-                        ? new Date(token.lastUsedAt * 1000).toLocaleString()
+                        ? new Date(token.lastUsedAt).toLocaleString()
                         : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
@@ -129,7 +139,7 @@ export function TokensPage() {
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(token.id)}
+                          onClick={() => handleDeleteClick(token.id)}
                           disabled={deleteMutation.isPending}
                           className="text-foreground/60 hover:bg-destructive/10 hover:text-destructive rounded p-1 transition-colors"
                         >
@@ -161,6 +171,26 @@ export function TokensPage() {
         token={editingToken}
         existingTokens={tokens || []}
       />
+
+      <Dialog open={!!tokenToDelete} onClose={() => setTokenToDelete(null)} title="Delete Token?">
+        <p className="text-muted-foreground text-sm mb-4">
+          This action cannot be undone. This will permanently delete the token and all associated
+          usage data.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setTokenToDelete(null)}>Cancel</Button>
+          <Button onClick={handleConfirmDelete} variant="destructive">
+            {deleteMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              'Delete Token'
+            )}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }

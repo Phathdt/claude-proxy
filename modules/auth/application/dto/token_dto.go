@@ -18,14 +18,14 @@ type UpdateTokenRequest struct {
 
 // TokenResponse represents the token response
 type TokenResponse struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Key        string `json:"key"`
-	Status     string `json:"status"`
-	CreatedAt  int64  `json:"created_at"`
-	UpdatedAt  int64  `json:"updated_at"`
-	UsageCount int    `json:"usage_count"`
-	LastUsedAt *int64 `json:"last_used_at,omitempty"`
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	Key        string  `json:"key"`
+	Status     string  `json:"status"`
+	CreatedAt  string  `json:"created_at"`  // RFC3339/ISO 8601 datetime
+	UpdatedAt  string  `json:"updated_at"`  // RFC3339/ISO 8601 datetime
+	UsageCount int     `json:"usage_count"`
+	LastUsedAt *string `json:"last_used_at,omitempty"` // RFC3339/ISO 8601 datetime
 }
 
 // ToTokenResponse converts entity to response DTO
@@ -35,13 +35,13 @@ func ToTokenResponse(token *entities.Token) *TokenResponse {
 		Name:       token.Name,
 		Key:        token.Key,
 		Status:     string(token.Status),
-		CreatedAt:  token.CreatedAt.Unix(),
-		UpdatedAt:  token.UpdatedAt.Unix(),
+		CreatedAt:  token.CreatedAt.Format(RFC3339),
+		UpdatedAt:  token.UpdatedAt.Format(RFC3339),
 		UsageCount: token.UsageCount,
 	}
 
 	if token.LastUsedAt != nil {
-		lastUsed := token.LastUsedAt.Unix()
+		lastUsed := token.LastUsedAt.Format(RFC3339)
 		resp.LastUsedAt = &lastUsed
 	}
 

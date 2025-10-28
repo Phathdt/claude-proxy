@@ -40,20 +40,47 @@ var CloveProviders = fx.Options(
 	fx.Provide(
 		// OAuth service
 		NewOAuthService,
-		// Infrastructure - Memory Repositories
-		NewMemoryAccountRepository,
-		NewMemoryTokenRepository,
-		NewMemorySessionRepository,
-		// Infrastructure - JSON Repositories
-		NewJSONAccountRepository,
-		NewJSONTokenRepository,
-		NewJSONSessionRepository,
+		// Infrastructure - Memory Repositories (annotated with group "memory")
+		fx.Annotate(
+			NewMemoryAccountRepository,
+			fx.ResultTags(`name:"memoryAccountRepo"`),
+		),
+		fx.Annotate(
+			NewMemoryTokenRepository,
+			fx.ResultTags(`name:"memoryTokenRepo"`),
+		),
+		fx.Annotate(
+			NewMemorySessionRepository,
+			fx.ResultTags(`name:"memorySessionRepo"`),
+		),
+		// Infrastructure - JSON Repositories (annotated with group "json")
+		fx.Annotate(
+			NewJSONAccountRepository,
+			fx.ResultTags(`name:"jsonAccountRepo"`),
+		),
+		fx.Annotate(
+			NewJSONTokenRepository,
+			fx.ResultTags(`name:"jsonTokenRepo"`),
+		),
+		fx.Annotate(
+			NewJSONSessionRepository,
+			fx.ResultTags(`name:"jsonSessionRepo"`),
+		),
 		// Infrastructure - Clients
 		NewClaudeAPIClient,
 		// Application - Services (hybrid storage)
-		NewTokenService,
-		NewAccountService,
-		NewSessionService,
+		fx.Annotate(
+			NewTokenService,
+			fx.ParamTags(`name:"memoryTokenRepo"`, `name:"jsonTokenRepo"`),
+		),
+		fx.Annotate(
+			NewAccountService,
+			fx.ParamTags(`name:"memoryAccountRepo"`, `name:"jsonAccountRepo"`, ``, ``),
+		),
+		fx.Annotate(
+			NewSessionService,
+			fx.ParamTags(`name:"memorySessionRepo"`, `name:"jsonSessionRepo"`, ``, ``),
+		),
 		NewProxyService,
 		// Infrastructure - Jobs
 		NewSyncScheduler,
@@ -80,6 +107,7 @@ var APIProviders = fx.Options(
 		NewGinEngine,
 	),
 	fx.Invoke(
+		StartSyncScheduler,
 		StartTokenRefreshScheduler,
 		StartSessionCleanupScheduler,
 	),

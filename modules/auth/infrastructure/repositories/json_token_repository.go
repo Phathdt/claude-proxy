@@ -18,14 +18,14 @@ import (
 
 // TokenDTO represents the JSON structure for token persistence
 type TokenDTO struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Key        string `json:"key"`
-	Status     string `json:"status"`
-	CreatedAt  int64  `json:"created_at"`
-	UpdatedAt  int64  `json:"updated_at"`
-	UsageCount int    `json:"usage_count"`
-	LastUsedAt *int64 `json:"last_used_at,omitempty"`
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	Key        string  `json:"key"`
+	Status     string  `json:"status"`
+	CreatedAt  string  `json:"created_at"`  // RFC3339/ISO 8601 datetime
+	UpdatedAt  string  `json:"updated_at"`  // RFC3339/ISO 8601 datetime
+	UsageCount int     `json:"usage_count"`
+	LastUsedAt *string `json:"last_used_at,omitempty"` // RFC3339/ISO 8601 datetime
 }
 
 // JSONTokenRepository implements TokenRepository using JSON file storage
@@ -209,13 +209,13 @@ func entityToDTO(token *entities.Token) *TokenDTO {
 		Name:       token.Name,
 		Key:        token.Key,
 		Status:     string(token.Status),
-		CreatedAt:  token.CreatedAt.Unix(),
-		UpdatedAt:  token.UpdatedAt.Unix(),
+		CreatedAt:  token.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  token.UpdatedAt.Format(time.RFC3339),
 		UsageCount: token.UsageCount,
 	}
 
 	if token.LastUsedAt != nil {
-		lastUsed := token.LastUsedAt.Unix()
+		lastUsed := token.LastUsedAt.Format(time.RFC3339)
 		dto.LastUsedAt = &lastUsed
 	}
 
@@ -224,18 +224,21 @@ func entityToDTO(token *entities.Token) *TokenDTO {
 
 // dtoToEntity converts DTO to entity
 func dtoToEntity(dto *TokenDTO) *entities.Token {
+	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dto.UpdatedAt)
+
 	token := &entities.Token{
 		ID:         dto.ID,
 		Name:       dto.Name,
 		Key:        dto.Key,
 		Status:     entities.TokenStatus(dto.Status),
-		CreatedAt:  time.Unix(dto.CreatedAt, 0),
-		UpdatedAt:  time.Unix(dto.UpdatedAt, 0),
+		CreatedAt:  createdAt,
+		UpdatedAt:  updatedAt,
 		UsageCount: dto.UsageCount,
 	}
 
 	if dto.LastUsedAt != nil {
-		lastUsed := time.Unix(*dto.LastUsedAt, 0)
+		lastUsed, _ := time.Parse(time.RFC3339, *dto.LastUsedAt)
 		token.LastUsedAt = &lastUsed
 	}
 

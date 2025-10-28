@@ -145,20 +145,16 @@ func (s *AccountService) FinalSync(ctx context.Context) error {
 }
 
 // CreateAccount creates a new account from OAuth code
-func (s *AccountService) CreateAccount(ctx context.Context, name, code string) (*entities.Account, error) {
-	// Exchange code for tokens (using PKCE code verifier)
-	// Note: For now, passing empty code verifier - should be passed from OAuth flow
-	tokenResp, err := s.oauthService.ExchangeCodeForToken(ctx, code, "")
+func (s *AccountService) CreateAccount(ctx context.Context, name, code, codeVerifier, orgID string) (*entities.Account, error) {
+	// Exchange code for tokens using PKCE code verifier
+	tokenResp, err := s.oauthService.ExchangeCodeForToken(ctx, code, codeVerifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
-	// Get organization UUID - using default Claude API base URL
-	// Note: Claude base URL should ideally be injected via config
-	orgUUID, err := s.oauthService.GetOrganizationUUID(ctx, tokenResp.AccessToken, "https://api.claude.ai")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get organization UUID: %w", err)
-	}
+	// Use the provided organization UUID from the request
+	// The org_id is included in the OAuth authorization URL and passed through the flow
+	orgUUID := orgID
 
 	// Create account entity
 	now := time.Now()
@@ -334,13 +330,15 @@ func (s *AccountService) GetStatistics(ctx context.Context) (map[string]interfac
 		return nil, err
 	}
 
-	stats := make(map[string]interface{})
-	stats["total_accounts"] = len(accounts)
-
 	// Count by status
 	activeCount := 0
 	inactiveCount := 0
 	rateLimitedCount := 0
+	invalidCount := 0
+	needsRefreshCount := 0
+
+	var oldestTokenAge time.Duration
+	now := time.Now()
 
 	for _, account := range accounts {
 		switch account.Status {
@@ -350,12 +348,39 @@ func (s *AccountService) GetStatistics(ctx context.Context) (map[string]interfac
 			inactiveCount++
 		case entities.AccountStatusRateLimited:
 			rateLimitedCount++
+		case entities.AccountStatusInvalid:
+			invalidCount++
+		}
+
+		// Check if account needs refresh (within 60s of expiry)
+		if account.NeedsRefresh() {
+			needsRefreshCount++
+		}
+
+		// Track oldest token age
+		tokenAge := now.Sub(account.ExpiresAt.Add(-1 * time.Hour)) // Tokens valid for 1 hour
+		if tokenAge > oldestTokenAge {
+			oldestTokenAge = tokenAge
 		}
 	}
 
+	// Calculate system health
+	systemHealth := "healthy"
+	if invalidCount > 0 || rateLimitedCount > len(accounts)/2 {
+		systemHealth = "unhealthy"
+	} else if rateLimitedCount > 0 || needsRefreshCount > len(accounts)/2 {
+		systemHealth = "degraded"
+	}
+
+	stats := make(map[string]interface{})
+	stats["total_accounts"] = len(accounts)
 	stats["active_accounts"] = activeCount
 	stats["inactive_accounts"] = inactiveCount
 	stats["rate_limited_accounts"] = rateLimitedCount
+	stats["invalid_accounts"] = invalidCount
+	stats["accounts_needing_refresh"] = needsRefreshCount
+	stats["oldest_token_age_hours"] = oldestTokenAge.Hours()
+	stats["system_health"] = systemHealth
 
 	return stats, nil
 }

@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Dialog } from '@/components/ui/dialog'
 import {
   Form,
   FormField,
@@ -92,6 +93,7 @@ export function AccountsPage() {
   const [state, setState] = useState('')
   const [codeVerifier, setCodeVerifier] = useState('')
   const [appNameForStep2, setAppNameForStep2] = useState('')
+  const [accountToDelete, setAccountToDelete] = useState<string | null>(null)
 
   // Dynamic schema with uniqueness validation
   const step1Schema = useMemo(() => createStep1SchemaWithUniqueCheck(accounts), [accounts])
@@ -153,13 +155,17 @@ export function AccountsPage() {
   }
 
   // Delete account
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this account?')) return
+  const handleDeleteClick = (id: string) => {
+    setAccountToDelete(id)
+  }
 
+  const handleConfirmDelete = async () => {
+    if (!accountToDelete) return
     try {
-      await deleteMutation.mutateAsync(id)
-    } catch {
-      alert('Failed to delete account')
+      await deleteMutation.mutateAsync(accountToDelete)
+      setAccountToDelete(null)
+    } catch (error) {
+      console.error('Failed to delete account:', error)
     }
   }
 
@@ -232,16 +238,16 @@ export function AccountsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-foreground text-sm">
-                      {new Date(account.expiresAt * 1000).toLocaleString()}
+                      {new Date(account.expiresAt).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-foreground/70 text-sm">
-                      {new Date(account.createdAt * 1000).toLocaleString()}
+                      {new Date(account.createdAt).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDelete(account.id)}
+                        onClick={() => handleDeleteClick(account.id)}
                         disabled={deleteMutation.isPending}
                       >
                         {deleteMutation.isPending ? (
@@ -431,6 +437,26 @@ export function AccountsPage() {
           </Card>
         </div>
       )}
+
+      <Dialog open={!!accountToDelete} onClose={() => setAccountToDelete(null)} title="Delete Account?">
+        <p className="text-muted-foreground text-sm mb-4">
+          This action cannot be undone. This will permanently delete the account and all associated
+          data.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setAccountToDelete(null)}>Cancel</Button>
+          <Button onClick={handleConfirmDelete} variant="destructive">
+            {deleteMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              'Delete Account'
+            )}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }

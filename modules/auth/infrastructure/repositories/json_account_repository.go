@@ -18,17 +18,17 @@ import (
 
 // AccountDTO represents the JSON structure for account persistence
 type AccountDTO struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	OrganizationUUID string `json:"organization_uuid"`
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	ExpiresAt        int64  `json:"expires_at"`
-	Status           string `json:"status"`
-	RateLimitedUntil *int64 `json:"rate_limited_until,omitempty"` // Unix timestamp, nil if not rate limited
-	LastRefreshError string `json:"last_refresh_error,omitempty"` // Error message from last refresh attempt
-	CreatedAt        int64  `json:"created_at"`
-	UpdatedAt        int64  `json:"updated_at"`
+	ID               string  `json:"id"`
+	Name             string  `json:"name"`
+	OrganizationUUID string  `json:"organization_uuid"`
+	AccessToken      string  `json:"access_token"`
+	RefreshToken     string  `json:"refresh_token"`
+	ExpiresAt        string  `json:"expires_at"`                   // RFC3339/ISO 8601 datetime
+	Status           string  `json:"status"`
+	RateLimitedUntil *string `json:"rate_limited_until,omitempty"` // RFC3339/ISO 8601 datetime, nil if not rate limited
+	LastRefreshError string  `json:"last_refresh_error,omitempty"` // Error message from last refresh attempt
+	CreatedAt        string  `json:"created_at"`                   // RFC3339/ISO 8601 datetime
+	UpdatedAt        string  `json:"updated_at"`                   // RFC3339/ISO 8601 datetime
 }
 
 // JSONAccountRepository implements AccountRepository using JSON file storage
@@ -280,16 +280,16 @@ func accountEntityToDTO(account *entities.Account) *AccountDTO {
 		OrganizationUUID: account.OrganizationUUID,
 		AccessToken:      account.AccessToken,
 		RefreshToken:     account.RefreshToken,
-		ExpiresAt:        account.ExpiresAt.Unix(),
+		ExpiresAt:        account.ExpiresAt.Format(time.RFC3339),
 		Status:           string(account.Status),
 		LastRefreshError: account.LastRefreshError,
-		CreatedAt:        account.CreatedAt.Unix(),
-		UpdatedAt:        account.UpdatedAt.Unix(),
+		CreatedAt:        account.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        account.UpdatedAt.Format(time.RFC3339),
 	}
 
 	// Convert RateLimitedUntil pointer
 	if account.RateLimitedUntil != nil {
-		timestamp := account.RateLimitedUntil.Unix()
+		timestamp := account.RateLimitedUntil.Format(time.RFC3339)
 		dto.RateLimitedUntil = &timestamp
 	}
 
@@ -298,22 +298,26 @@ func accountEntityToDTO(account *entities.Account) *AccountDTO {
 
 // accountDtoToEntity converts DTO to entity
 func accountDtoToEntity(dto *AccountDTO) *entities.Account {
+	expiresAt, _ := time.Parse(time.RFC3339, dto.ExpiresAt)
+	createdAt, _ := time.Parse(time.RFC3339, dto.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dto.UpdatedAt)
+
 	account := &entities.Account{
 		ID:               dto.ID,
 		Name:             dto.Name,
 		OrganizationUUID: dto.OrganizationUUID,
 		AccessToken:      dto.AccessToken,
 		RefreshToken:     dto.RefreshToken,
-		ExpiresAt:        time.Unix(dto.ExpiresAt, 0),
+		ExpiresAt:        expiresAt,
 		Status:           entities.AccountStatus(dto.Status),
 		LastRefreshError: dto.LastRefreshError,
-		CreatedAt:        time.Unix(dto.CreatedAt, 0),
-		UpdatedAt:        time.Unix(dto.UpdatedAt, 0),
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
 	}
 
 	// Convert RateLimitedUntil pointer
 	if dto.RateLimitedUntil != nil {
-		t := time.Unix(*dto.RateLimitedUntil, 0)
+		t, _ := time.Parse(time.RFC3339, *dto.RateLimitedUntil)
 		account.RateLimitedUntil = &t
 	}
 

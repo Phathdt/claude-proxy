@@ -11,7 +11,7 @@ type AccountService interface {
 	// CreateAccount creates a new app account from OAuth code
 	CreateAccount(
 		ctx context.Context,
-		name, code string,
+		name, code, codeVerifier, orgID string,
 	) (*entities.Account, error)
 
 	// GetAccount retrieves an account by ID

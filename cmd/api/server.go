@@ -184,8 +184,6 @@ func StartAPIServer(
 			appLogger.Info("    GET    /api/accounts/:id     - Get account by ID")
 			appLogger.Info("    PUT    /api/accounts/:id     - Update account")
 			appLogger.Info("    DELETE /api/accounts/:id     - Delete account")
-			appLogger.Info("    GET    /api/accounts/:id/sessions - List account sessions")
-			appLogger.Info("    DELETE /api/accounts/:id/sessions - Revoke all account sessions")
 			appLogger.Info("  Session Management (requires API key):")
 			appLogger.Info("    GET    /api/admin/sessions  - List all sessions")
 			appLogger.Info("    DELETE /api/sessions/:id    - Revoke session by ID")

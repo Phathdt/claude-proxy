@@ -179,10 +179,12 @@ export interface Account {
   organizationUuid: string
   accessToken?: string
   refreshToken?: string
-  expiresAt: number
+  expiresAt: string // RFC3339/ISO 8601 datetime
   status: string
-  createdAt: number
-  updatedAt: number
+  rateLimitedUntil?: string // RFC3339/ISO 8601 datetime
+  lastRefreshError?: string
+  createdAt: string // RFC3339/ISO 8601 datetime
+  updatedAt: string // RFC3339/ISO 8601 datetime
 }
 
 export interface CreateAccountRequest {

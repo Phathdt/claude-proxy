@@ -119,7 +119,8 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 		state = parts[1]
 	}
 
-	// Build JSON payload
+	// Build JSON payload (Claude's OAuth API uses JSON, not form-urlencoded)
+	// Note: state parameter IS required for Claude's OAuth implementation
 	payload := map[string]string{
 		"code":          authCode,
 		"grant_type":    "authorization_code",
@@ -128,7 +129,7 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 		"code_verifier": codeVerifier,
 	}
 
-	// Add state if present
+	// Add state if present (Claude requires this)
 	if state != "" {
 		payload["state"] = state
 	}
@@ -137,6 +138,12 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal token request: %w", err)
 	}
+
+	// Debug logging
+	s.logger.Withs(sctx.Fields{
+		"url":     s.tokenURL,
+		"payload": string(jsonData),
+	}).Info("Sending token exchange request to Claude OAuth API")
 
 	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(string(jsonData)))
 	if err != nil {

@@ -10,8 +10,7 @@ export const createTokenSchema = z.object({
     .max(100, 'Name must be at most 100 characters'),
   key: z
     .string()
-    .min(1, 'Token value is required')
-    .min(10, 'Token value must be at least 10 characters'),
+    .min(1, 'Token value is required'),
   status: statusEnum.default('active'),
 })
 

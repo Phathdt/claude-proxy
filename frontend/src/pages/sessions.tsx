@@ -13,16 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, Loader2, Trash2, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { Dialog } from '@/components/ui/dialog'
 import type { Session } from '@/types/session'
 
 export default function SessionsPage() {
@@ -165,30 +156,25 @@ export default function SessionsPage() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!sessionToRevoke} onOpenChange={() => setSessionToRevoke(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Revoke Session?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will immediately terminate the session. The user will need to create a new session
-              to continue using the API.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRevokeSession}>
-              {revokeSessionMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Revoking...
-                </>
-              ) : (
-                'Revoke Session'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={!!sessionToRevoke} onClose={() => setSessionToRevoke(null)} title="Revoke Session?">
+        <p className="text-muted-foreground text-sm mb-4">
+          This will immediately terminate the session. The user will need to create a new session
+          to continue using the API.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setSessionToRevoke(null)}>Cancel</Button>
+          <Button onClick={handleRevokeSession} variant="destructive">
+            {revokeSessionMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Revoking...
+              </>
+            ) : (
+              'Revoke Session'
+            )}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }

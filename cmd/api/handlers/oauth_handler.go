@@ -133,8 +133,8 @@ func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Use AccountService to create account (handles OAuth exchange and org UUID fetch)
-	acc, err := h.accountSvc.CreateAccount(ctx, req.Name, req.Code)
+	// Use AccountService to create account (handles OAuth exchange)
+	acc, err := h.accountSvc.CreateAccount(ctx, req.Name, req.Code, req.CodeVerifier, req.OrgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{

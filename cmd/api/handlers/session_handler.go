@@ -48,9 +48,9 @@ func (h *SessionHandler) ListAllSessions(c *gin.Context) {
 			TokenID:     session.TokenID,
 			UserAgent:   session.UserAgent,
 			IPAddress:   session.IPAddress,
-			CreatedAt:   session.CreatedAt.Unix(),
-			LastSeenAt:  session.LastSeenAt.Unix(),
-			ExpiresAt:   session.ExpiresAt.Unix(),
+			CreatedAt:   session.CreatedAt.Format("2006-01-02T15:04:05Z07:00"), // RFC3339
+			LastSeenAt:  session.LastSeenAt.Format("2006-01-02T15:04:05Z07:00"), // RFC3339
+			ExpiresAt:   session.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),  // RFC3339
 			IsActive:    session.IsActive,
 			RequestPath: session.RequestPath,
 		}

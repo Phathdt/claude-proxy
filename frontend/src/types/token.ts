@@ -3,10 +3,10 @@ export interface Token {
   name: string
   key: string
   status: 'active' | 'inactive'
-  createdAt: number
-  updatedAt: number
+  createdAt: string // RFC3339/ISO 8601 datetime
+  updatedAt: string // RFC3339/ISO 8601 datetime
   usageCount: number
-  lastUsedAt?: number
+  lastUsedAt?: string // RFC3339/ISO 8601 datetime
 }
 
 export interface CreateTokenDto {

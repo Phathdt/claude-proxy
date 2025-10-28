@@ -119,7 +119,7 @@ export function DashboardPage() {
                       <TableCell>{token.usageCount.toLocaleString()}</TableCell>
                       <TableCell className="text-foreground/70 text-sm">
                         {token.lastUsedAt
-                          ? new Date(token.lastUsedAt * 1000).toLocaleDateString()
+                          ? new Date(token.lastUsedAt).toLocaleDateString()
                           : 'Never used'}
                       </TableCell>
                     </TableRow>
