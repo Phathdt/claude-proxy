@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, ExternalLink, Loader2, CheckCircle2, XCircle } from 'lucide-react'
@@ -95,13 +95,11 @@ export function AccountsPage() {
   const [appNameForStep2, setAppNameForStep2] = useState('')
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null)
 
-  // Dynamic schema with uniqueness validation
-  const step1Schema = useMemo(() => createStep1SchemaWithUniqueCheck(accounts), [accounts])
-
   // Form handlers for each step
   const form1 = useForm<Step1FormData>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(step1Schema as any),
+    resolver: zodResolver(
+      useMemo(() => createStep1SchemaWithUniqueCheck(accounts), [accounts])
+    ) as Resolver<Step1FormData>,
     defaultValues: {
       appName: '',
       orgId: '',
@@ -438,13 +436,19 @@ export function AccountsPage() {
         </div>
       )}
 
-      <Dialog open={!!accountToDelete} onClose={() => setAccountToDelete(null)} title="Delete Account?">
-        <p className="text-muted-foreground text-sm mb-4">
+      <Dialog
+        open={!!accountToDelete}
+        onClose={() => setAccountToDelete(null)}
+        title="Delete Account?"
+      >
+        <p className="text-muted-foreground mb-4 text-sm">
           This action cannot be undone. This will permanently delete the account and all associated
           data.
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setAccountToDelete(null)}>Cancel</Button>
+          <Button variant="outline" onClick={() => setAccountToDelete(null)}>
+            Cancel
+          </Button>
           <Button onClick={handleConfirmDelete} variant="destructive">
             {deleteMutation.isPending ? (
               <>

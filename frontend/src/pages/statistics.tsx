@@ -156,7 +156,7 @@ export function StatisticsPage() {
                 <healthConfig.icon className={`h-12 w-12 ${healthConfig.color}`} />
               </div>
               <div>
-                <p className="text-foreground/70 mb-1 text-sm font-medium uppercase tracking-wide">
+                <p className="text-foreground/70 mb-1 text-sm font-medium tracking-wide uppercase">
                   Current Status
                 </p>
                 <p className={`text-4xl font-bold ${healthConfig.color}`}>{healthConfig.label}</p>

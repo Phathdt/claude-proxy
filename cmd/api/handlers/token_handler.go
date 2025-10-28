@@ -8,6 +8,7 @@ import (
 	"claude-proxy/modules/auth/domain/interfaces"
 
 	"github.com/gin-gonic/gin"
+	"github.com/phathdt/service-context/core"
 )
 
 // TokenHandler handles HTTP requests for token management
@@ -22,10 +23,38 @@ func NewTokenHandler(tokenService interfaces.TokenService) *TokenHandler {
 	}
 }
 
-// ListTokens lists all tokens
-// GET /api/tokens
+// ListTokens lists all tokens with optional filtering and pagination
+// GET /api/tokens?role=admin&status=active&search=prod&page=1&limit=10
 func (h *TokenHandler) ListTokens(c *gin.Context) {
-	tokens, err := h.tokenService.ListTokens(c.Request.Context())
+	// Parse query parameters
+	var query dto.TokenQueryParams
+	if err := c.ShouldBindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"type":    "invalid_request_error",
+				"message": err.Error(),
+			},
+		})
+		return
+	}
+
+	// Parse pagination parameters
+	var paging core.Paging
+	if err := c.ShouldBindQuery(&paging); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"type":    "invalid_request_error",
+				"message": err.Error(),
+			},
+		})
+		return
+	}
+
+	// Process pagination params (normalize page/limit)
+	paging.Process()
+
+	// Get tokens from service (paging is mutated with metadata)
+	tokens, err := h.tokenService.ListTokens(c.Request.Context(), &query, &paging)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -36,8 +65,10 @@ func (h *TokenHandler) ListTokens(c *gin.Context) {
 		return
 	}
 
+	// Build response with paging metadata
 	c.JSON(http.StatusOK, gin.H{
 		"tokens": dto.ToTokenResponses(tokens),
+		"paging": paging,
 	})
 }
 

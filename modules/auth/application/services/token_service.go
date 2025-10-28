@@ -3,14 +3,17 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"claude-proxy/modules/auth/application/dto"
 	"claude-proxy/modules/auth/domain/entities"
 	"claude-proxy/modules/auth/domain/interfaces"
 
 	"github.com/google/uuid"
 	sctx "github.com/phathdt/service-context"
+	"github.com/phathdt/service-context/core"
 )
 
 // TokenService implements token management with hybrid storage
@@ -184,9 +187,64 @@ func (s *TokenService) GetTokenByKey(ctx context.Context, key string) (*entities
 	return s.memoryRepo.GetByKey(ctx, key)
 }
 
-// ListTokens retrieves all tokens
-func (s *TokenService) ListTokens(ctx context.Context) ([]*entities.Token, error) {
-	return s.memoryRepo.List(ctx)
+// ListTokens retrieves tokens with optional filtering and pagination
+// Pagination metadata is injected into the paging pointer
+func (s *TokenService) ListTokens(
+	ctx context.Context,
+	query *dto.TokenQueryParams,
+	paging *core.Paging,
+) ([]*entities.Token, error) {
+	// Get all tokens from memory
+	allTokens, err := s.memoryRepo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter tokens based on query params
+	filtered := make([]*entities.Token, 0)
+	for _, token := range allTokens {
+		// Filter by role
+		if query.Role != "" && string(token.Role) != query.Role {
+			continue
+		}
+
+		// Filter by status
+		if query.Status != "" && string(token.Status) != query.Status {
+			continue
+		}
+
+		// Search by name or key (case-insensitive)
+		if query.Search != "" {
+			searchLower := strings.ToLower(query.Search)
+			nameLower := strings.ToLower(token.Name)
+			keyLower := strings.ToLower(token.Key)
+			if !strings.Contains(nameLower, searchLower) && !strings.Contains(keyLower, searchLower) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, token)
+	}
+
+	// Set total count
+	paging.Total = int64(len(filtered))
+
+	// Apply pagination
+	offset := (paging.Page - 1) * paging.Limit
+	limit := paging.Limit
+
+	// Calculate pagination bounds
+	start := offset
+	end := offset + limit
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+
+	// Return paginated slice
+	return filtered[start:end], nil
 }
 
 // UpdateToken updates an existing token

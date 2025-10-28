@@ -24,3 +24,24 @@ export interface UpdateTokenDto {
   status: 'active' | 'inactive'
   role: 'user' | 'admin'
 }
+
+export interface TokenQueryParams {
+  role?: 'user' | 'admin' | ''
+  status?: 'active' | 'inactive' | ''
+  search?: string
+  page?: number
+  limit?: number
+}
+
+export interface Paging {
+  page: number
+  limit: number
+  total: number
+  cursor?: string
+  next_cursor?: string
+}
+
+export interface TokenListResponse {
+  tokens: Token[]
+  paging: Paging
+}

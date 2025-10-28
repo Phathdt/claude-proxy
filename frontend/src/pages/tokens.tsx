@@ -16,13 +16,26 @@ import { TokenFormModal } from '@/components/tokens/token-form-modal'
 import type { Token } from '@/types/token'
 
 export function TokensPage() {
-  const { data: tokens, isLoading } = useTokens()
-  const deleteMutation = useDeleteToken()
-
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingToken, setEditingToken] = useState<Token | undefined>()
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [tokenToDelete, setTokenToDelete] = useState<string | null>(null)
+  const [roleFilter, setRoleFilter] = useState<'' | 'user' | 'admin'>('')
+  const [page, setPage] = useState(1)
+
+  // Fetch tokens with backend filtering
+  const { data: response, isLoading } = useTokens({
+    role: roleFilter,
+    page,
+    limit: 10,
+  })
+
+  const deleteMutation = useDeleteToken()
+
+  const tokens = response?.tokens || []
+  const paging = response?.paging
+  const total = paging?.total || 0
+  const totalPages = paging ? Math.ceil(paging.total / paging.limit) : 1
 
   const handleCreate = () => {
     setEditingToken(undefined)
@@ -72,6 +85,31 @@ export function TokensPage() {
         </Button>
       </div>
 
+      {/* Filter */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <label htmlFor="role-filter" className="text-foreground text-sm font-medium">
+            Filter by role:
+          </label>
+          <select
+            id="role-filter"
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value as '' | 'user' | 'admin')
+              setPage(1) // Reset to first page on filter change
+            }}
+            className="border-input bg-background text-foreground focus:border-ring focus:ring-ring rounded-md border px-3 py-2 text-sm ring-2 focus:outline-none"
+          >
+            <option value="">All Tokens</option>
+            <option value="user">API Tokens</option>
+            <option value="admin">Admin Tokens</option>
+          </select>
+        </div>
+        <p className="text-muted-foreground text-sm">
+          Showing {tokens.length} of {total} tokens
+        </p>
+      </div>
+
       {/* Table */}
       <Card>
         <CardContent className="p-0">
@@ -80,7 +118,7 @@ export function TokensPage() {
               <Loader2 className="text-primary mx-auto h-8 w-8 animate-spin" />
               <p className="text-muted-foreground mt-2">Loading tokens...</p>
             </div>
-          ) : tokens && tokens.length > 0 ? (
+          ) : tokens.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -138,9 +176,7 @@ export function TokensPage() {
                     </TableCell>
                     <TableCell>{token.usageCount.toLocaleString()}</TableCell>
                     <TableCell className="text-foreground/70 text-sm">
-                      {token.lastUsedAt
-                        ? new Date(token.lastUsedAt).toLocaleString()
-                        : 'Never'}
+                      {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -167,6 +203,12 @@ export function TokensPage() {
                 ))}
               </TableBody>
             </Table>
+          ) : total > 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">
+                No tokens match the selected filter. Try changing the filter or create a new token.
+              </p>
+            </div>
           ) : (
             <div className="py-12 text-center">
               <p className="text-muted-foreground">
@@ -177,6 +219,33 @@ export function TokensPage() {
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground text-sm">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       <TokenFormModal
         open={isModalOpen}
         onClose={handleCloseModal}
@@ -185,12 +254,14 @@ export function TokensPage() {
       />
 
       <Dialog open={!!tokenToDelete} onClose={() => setTokenToDelete(null)} title="Delete Token?">
-        <p className="text-muted-foreground text-sm mb-4">
+        <p className="text-muted-foreground mb-4 text-sm">
           This action cannot be undone. This will permanently delete the token and all associated
           usage data.
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setTokenToDelete(null)}>Cancel</Button>
+          <Button variant="outline" onClick={() => setTokenToDelete(null)}>
+            Cancel
+          </Button>
           <Button onClick={handleConfirmDelete} variant="destructive">
             {deleteMutation.isPending ? (
               <>

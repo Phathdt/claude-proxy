@@ -1,4 +1,4 @@
-import type { FieldValues, UseFormSetError } from 'react-hook-form'
+import type { FieldValues, UseFormSetError, Path } from 'react-hook-form'
 
 /**
  * Extracts field names from API error response
@@ -35,16 +35,16 @@ export function setFormErrors<T extends FieldValues>(
 
   if (Object.keys(fieldErrors).length > 0) {
     Object.entries(fieldErrors).forEach(([field, message]) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setError(field as any, {
-        type: 'server',
-        message,
-      })
+      if (field in ({} as T)) {
+        setError(field as Path<T>, {
+          type: 'server',
+          message,
+        })
+      }
     })
   } else {
     // Set root error if no field-specific errors
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setError('root' as any, {
+    setError('root', {
       type: 'server',
       message: defaultMessage,
     })

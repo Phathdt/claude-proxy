@@ -9,9 +9,7 @@ export const createTokenSchema = z.object({
     .min(1, 'Name is required')
     .min(3, 'Name must be at least 3 characters')
     .max(100, 'Name must be at most 100 characters'),
-  key: z
-    .string()
-    .min(1, 'Token value is required'),
+  key: z.string().min(1, 'Token value is required'),
   status: statusEnum.default('active'),
   role: roleEnum.default('user').optional(),
 })
@@ -21,17 +19,8 @@ export const updateTokenSchema = createTokenSchema.extend({
   role: roleEnum.default('user'),
 })
 
-export type CreateTokenFormData = {
-  name: string
-  key: string
-  status: 'active' | 'inactive'
-  role?: 'user' | 'admin'
-}
-
-export type UpdateTokenFormData = CreateTokenFormData & {
-  id: string
-  role: 'user' | 'admin'
-}
+export type CreateTokenFormData = z.infer<typeof createTokenSchema>
+export type UpdateTokenFormData = z.infer<typeof updateTokenSchema>
 
 // Validation helpers for unique constraints
 export function createTokenSchemaWithUniqueCheck(

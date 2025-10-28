@@ -13,8 +13,7 @@ import {
 
 import { cn } from '@/lib/utils'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const Form = FormProvider as any
+const Form = FormProvider
 
 interface FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,
@@ -25,20 +24,18 @@ interface FormFieldContextValue<
 
 const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue)
 
-type FormFieldProps<
+const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
-> = ControllerProps<TFieldValues, TName>
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const FormField = React.forwardRef<HTMLDivElement, FormFieldProps<any, any>>(
-  ({ control, name, render }) => (
-    <FormFieldContext.Provider value={{ name }}>
-      <Controller name={name} control={control} render={render} />
-    </FormFieldContext.Provider>
-  )
+>({
+  control,
+  name,
+  render,
+}: ControllerProps<TFieldValues, TName>) => (
+  <FormFieldContext.Provider value={{ name }}>
+    <Controller name={name} control={control} render={render} />
+  </FormFieldContext.Provider>
 )
-FormField.displayName = 'FormField'
 
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext)
@@ -163,7 +160,6 @@ const FormMessage = React.forwardRef<
 FormMessage.displayName = 'FormMessage'
 
 export {
-  useFormField,
   Form,
   FormField,
   FormItem,
@@ -171,4 +167,5 @@ export {
   FormControl,
   FormDescription,
   FormMessage,
+  useFormField,
 }

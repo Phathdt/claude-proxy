@@ -1,6 +1,15 @@
 package dto
 
-import "claude-proxy/modules/auth/domain/entities"
+import (
+	"claude-proxy/modules/auth/domain/entities"
+)
+
+// TokenQueryParams represents query parameters for listing tokens
+type TokenQueryParams struct {
+	Role   string `form:"role"`   // Filter by role: "admin", "user", or empty for all
+	Status string `form:"status"` // Filter by status: "active", "inactive", or empty for all
+	Search string `form:"search"` // Search by name or key
+}
 
 // CreateTokenRequest represents the request to create a token
 type CreateTokenRequest struct {

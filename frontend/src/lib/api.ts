@@ -1,5 +1,11 @@
 import axios from 'axios'
-import type { Token, CreateTokenDto, UpdateTokenDto } from '@/types/token'
+import type {
+  Token,
+  CreateTokenDto,
+  UpdateTokenDto,
+  TokenQueryParams,
+  TokenListResponse,
+} from '@/types/token'
 import type { Statistics } from '@/types/statistics'
 import type { ListSessionsResponse, RevokeSessionResponse } from '@/types/session'
 import { convertKeysToSnake, convertKeysToCamel } from './case-converter'
@@ -74,9 +80,9 @@ apiClient.interceptors.response.use(
 
 // Token API (real API calls to backend)
 export const tokenApi = {
-  getAll: async (): Promise<Token[]> => {
-    const response = await apiClient.get('/api/tokens')
-    return response.data.tokens || []
+  getAll: async (params?: TokenQueryParams): Promise<TokenListResponse> => {
+    const response = await apiClient.get('/api/tokens', { params })
+    return response.data
   },
 
   getById: async (id: string): Promise<Token | undefined> => {
@@ -94,6 +100,7 @@ export const tokenApi = {
       name: data.name,
       key: data.key,
       status: data.status,
+      role: data.role,
     })
     return response.data.token
   },

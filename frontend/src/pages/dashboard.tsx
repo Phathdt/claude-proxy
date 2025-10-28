@@ -11,13 +11,15 @@ import {
 import { useTokens } from '@/hooks/use-tokens'
 
 export function DashboardPage() {
-  const { data: tokens, isLoading } = useTokens()
+  const { data: response, isLoading } = useTokens()
+
+  const tokens = response?.tokens || []
 
   const stats = {
-    totalTokens: tokens?.length || 0,
-    activeTokens: tokens?.filter((t) => t.status === 'active').length || 0,
-    totalUsage: tokens?.reduce((acc, t) => acc + t.usageCount, 0) || 0,
-    avgUsage: tokens?.length
+    totalTokens: tokens.length || 0,
+    activeTokens: tokens.filter((t) => t.status === 'active').length || 0,
+    totalUsage: tokens.reduce((acc, t) => acc + t.usageCount, 0) || 0,
+    avgUsage: tokens.length
       ? Math.round(tokens.reduce((acc, t) => acc + t.usageCount, 0) / tokens.length)
       : 0,
   }

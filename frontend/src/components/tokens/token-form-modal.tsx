@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog } from '@/components/ui/dialog'
 import {
@@ -27,13 +27,14 @@ interface TokenFormModalProps {
 }
 
 export function TokenFormModal({ open, onClose, token, existingTokens = [] }: TokenFormModalProps) {
-  const schema = token
+  const isEditing = !!token
+  const createSchema = createTokenSchemaWithUniqueCheck(existingTokens)
+  const updateSchema = token
     ? updateTokenSchemaWithUniqueCheck(existingTokens, token.id)
-    : createTokenSchemaWithUniqueCheck(existingTokens)
+    : createSchema
 
   const form = useForm<CreateTokenFormData>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(schema as any),
+    resolver: zodResolver(isEditing ? updateSchema : createSchema) as Resolver<CreateTokenFormData>,
     defaultValues: {
       name: '',
       key: '',
@@ -51,8 +52,8 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
         form.reset({
           name: token.name,
           key: token.key,
-          status: token.status as 'active' | 'inactive',
-          role: token.role as 'user' | 'admin',
+          status: token.status,
+          role: token.role,
         })
       } else {
         form.reset({
@@ -70,8 +71,10 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
       if (token) {
         await updateMutation.mutateAsync({
           id: token.id,
-          ...data,
-          role: data.role || 'user'
+          name: data.name,
+          key: data.key,
+          status: data.status,
+          role: data.role || 'user',
         })
       } else {
         await createMutation.mutateAsync(data)
@@ -88,8 +91,7 @@ export function TokenFormModal({ open, onClose, token, existingTokens = [] }: To
   return (
     <Dialog open={open} onClose={onClose} title={token ? 'Edit Token' : 'Create Token'}>
       <Form {...form}>
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <form onSubmit={form.handleSubmit(handleSubmit as any)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <FormField
             control={form.control}
             name="name"

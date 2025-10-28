@@ -49,7 +49,7 @@ export default function SessionsPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
       </div>
     )
   }
@@ -87,13 +87,11 @@ export default function SessionsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Sessions ({totalSessions})</CardTitle>
-          <CardDescription>
-            All active sessions with concurrent usage tracking
-          </CardDescription>
+          <CardDescription>All active sessions with concurrent usage tracking</CardDescription>
         </CardHeader>
         <CardContent>
           {sessions.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">
+            <div className="text-muted-foreground flex h-32 items-center justify-center">
               No active sessions
             </div>
           ) : (
@@ -124,7 +122,10 @@ export default function SessionsPage() {
                       </code>
                     </TableCell>
                     <TableCell className="text-foreground text-sm">{session.ipAddress}</TableCell>
-                    <TableCell className="text-foreground/70 max-w-[200px] truncate text-xs" title={session.userAgent}>
+                    <TableCell
+                      className="text-foreground/70 max-w-[200px] truncate text-xs"
+                      title={session.userAgent}
+                    >
                       {session.userAgent}
                     </TableCell>
                     <TableCell className="text-foreground text-sm">
@@ -156,13 +157,19 @@ export default function SessionsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!sessionToRevoke} onClose={() => setSessionToRevoke(null)} title="Revoke Session?">
-        <p className="text-muted-foreground text-sm mb-4">
-          This will immediately terminate the session. The user will need to create a new session
-          to continue using the API.
+      <Dialog
+        open={!!sessionToRevoke}
+        onClose={() => setSessionToRevoke(null)}
+        title="Revoke Session?"
+      >
+        <p className="text-muted-foreground mb-4 text-sm">
+          This will immediately terminate the session. The user will need to create a new session to
+          continue using the API.
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setSessionToRevoke(null)}>Cancel</Button>
+          <Button variant="outline" onClick={() => setSessionToRevoke(null)}>
+            Cancel
+          </Button>
           <Button onClick={handleRevokeSession} variant="destructive">
             {revokeSessionMutation.isPending ? (
               <>

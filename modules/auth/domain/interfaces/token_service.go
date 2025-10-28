@@ -3,7 +3,10 @@ package interfaces
 import (
 	"context"
 
+	"claude-proxy/modules/auth/application/dto"
 	"claude-proxy/modules/auth/domain/entities"
+
+	"github.com/phathdt/service-context/core"
 )
 
 // TokenService defines the interface for token management operations
@@ -22,8 +25,9 @@ type TokenService interface {
 	// GetTokenByKey retrieves a token by its key
 	GetTokenByKey(ctx context.Context, key string) (*entities.Token, error)
 
-	// ListTokens retrieves all tokens
-	ListTokens(ctx context.Context) ([]*entities.Token, error)
+	// ListTokens retrieves tokens with optional filtering and pagination
+	// Pagination metadata is injected into the paging pointer
+	ListTokens(ctx context.Context, query *dto.TokenQueryParams, paging *core.Paging) ([]*entities.Token, error)
 
 	// UpdateToken updates an existing token
 	UpdateToken(

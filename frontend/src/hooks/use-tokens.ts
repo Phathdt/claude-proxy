@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { tokenApi } from '@/lib/api'
-import type { CreateTokenDto, UpdateTokenDto } from '@/types/token'
+import type { CreateTokenDto, UpdateTokenDto, TokenQueryParams } from '@/types/token'
 
-export const useTokens = () => {
+export const useTokens = (params?: TokenQueryParams) => {
   return useQuery({
-    queryKey: ['tokens'],
-    queryFn: tokenApi.getAll,
+    queryKey: ['tokens', params],
+    queryFn: () => tokenApi.getAll(params),
   })
 }
 
