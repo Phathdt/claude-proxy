@@ -5,7 +5,7 @@ This document tracks the development roadmap for Claude Proxy, including feature
 ## Overview
 
 **Current Version**: 0.1.0
-**Feature Parity**: 9/12 (75% complete)
+**Feature Parity**: 10/12 (83% complete)
 **Status**: Production-ready with core features complete
 
 ## Feature Comparison Matrix
@@ -24,7 +24,7 @@ Comparison with Python version features:
 | Automatic Recovery | ✅ | ✅ | **✅ Done** | - |
 | Statistics & Health Monitoring | ✅ | ✅ | **✅ Done** | - |
 | Idle Account Detection | ✅ | ❌ | Planned | ⚡ Important |
-| Session Limiting | ✅ | ❌ | Planned | ⚡ Important |
+| Session Limiting | ✅ | ✅ | **✅ Done** | - |
 | Enhanced Exponential Backoff | ✅ | ⚠️ Basic | Planned | ⚡ Important |
 | Capability Detection | ✅ | ❌ | Idea | 📦 Nice to Have |
 | Organization Validation | ✅ | ❌ | Idea | 📦 Nice to Have |
@@ -87,10 +87,44 @@ Comparison with Python version features:
 - ✅ Token health metrics
 - ✅ Frontend dashboard with 30s auto-refresh
 
-## Next Milestone: Important Features (0/3)
+## Completed Features (10/10 Core + Important)
 
-**Target Completion**: 5-8 hours
-**Goal**: Production hardening with abuse prevention
+### Session Limiting ✅
+
+**Status**: ✅ Complete
+
+**Description**: Prevent concurrent usage abuse by limiting active sessions per client (IP + User-Agent).
+
+**Implementation**:
+- ✅ JSON file-based session tracking (no Redis required)
+- ✅ Configurable max concurrent sessions globally (default: 3)
+- ✅ Per-client session limiting (IP + UserAgent)
+- ✅ Automatic session expiry and cleanup
+- ✅ Dynamic account rotation per request
+- ✅ 429 error response when limit exceeded
+- ✅ Admin dashboard session monitoring
+- ✅ Manual session revocation
+
+**Benefits**:
+- Prevents abuse while allowing automatic account failover
+- No zombie sessions stuck to expired accounts
+- Better load balancing with dynamic account selection
+- Clean session tracking without external dependencies
+
+**Configuration**:
+```yaml
+session:
+  enabled: true
+  max_concurrent: 3
+  session_ttl: 5m
+  cleanup_enabled: true
+  cleanup_interval: 1m
+```
+
+## Next Milestone: Important Features (0/2)
+
+**Target Completion**: 3-5 hours
+**Goal**: Production hardening with resource optimization
 
 ### 1. Idle Account Detection (2-3 hours)
 
@@ -118,38 +152,7 @@ accounts:
   auto_deactivate: true
 ```
 
-### 2. Session Limiting (2-3 hours)
-
-**Status**: 📋 Planned
-
-**Description**: Prevent concurrent usage abuse by limiting active sessions per account.
-
-**Implementation Plan**:
-- Redis-based session tracking
-- Configurable max concurrent sessions per account (default: 3)
-- Session creation on each request with TTL
-- 429 error response when limit exceeded
-- Admin dashboard session monitoring
-- Manual session revocation
-
-**Benefits**:
-- Prevents account sharing abuse
-- Fair resource distribution
-- Better usage tracking
-
-**Configuration**:
-```yaml
-sessions:
-  enabled: true
-  max_concurrent: 3
-  session_ttl: 5m
-  redis_url: "redis://localhost:6379"
-```
-
-**Requirements**:
-- Redis server for session storage
-
-### 3. Enhanced Exponential Backoff (1-2 hours)
+### 2. Enhanced Exponential Backoff (1-2 hours)
 
 **Status**: 📋 Planned (currently has basic retry)
 
@@ -298,9 +301,9 @@ retry:
 ## Progress Tracking
 
 - **Core Features**: ✅ 9/9 (100% complete)
-- **Important Features**: ⏳ 0/3 (0% complete)
+- **Important Features**: ✅ 1/3 (33% complete)
 - **Nice to Have**: ⏳ 0/3 (0% complete)
-- **Overall Python Parity**: 📊 9/12 (75% complete)
+- **Overall Python Parity**: 📊 10/12 (83% complete)
 
 ## Contributing
 

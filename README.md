@@ -10,6 +10,11 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
   - Automatic rate limit detection and recovery
   - Invalid token detection with smart error handling
   - Intelligent load balancing that prioritizes healthy accounts
+- **Session Limiting**: Prevent abuse with configurable concurrent session limits per client (IP + UserAgent)
+  - JSON file-based session tracking (no Redis required)
+  - Automatic session expiry and cleanup
+  - Admin dashboard for session monitoring
+  - Dynamic account rotation per request
 - **Automatic Token Refresh**: Dual triggers - hourly cronjob + on-demand (60-second buffer)
 - **Smart Load Balancing**: Stateless round-robin with health filtering and automatic failover
 - **Claude API Proxy**: Full proxy support for Claude API requests with SSE streaming
@@ -17,7 +22,7 @@ A production-ready Claude API reverse proxy with **OAuth 2.0 authentication**, *
 - **Configurable Timeouts**: 5-minute default timeout for extended thinking and long responses
 - **Admin Dashboard**: React-based UI with dark/light theme support for OAuth setup and account management
 - **Graceful Request Handling**: Smart context cancellation handling - no panics on user-canceled requests
-- **JSON Persistence**: File-based account storage (no database required)
+- **JSON Persistence**: File-based account and session storage (no database required)
 - **API Key Protection**: Secure all proxy requests with configurable API keys
 
 ## Quick Start
@@ -257,9 +262,9 @@ make build
 
 ## Roadmap
 
-**Feature Parity**: 9/12 (75% complete) with Python version
+**Feature Parity**: 10/12 (83% complete) with Python version
 
-**Next Up**: Idle Account Detection, Session Limiting, Enhanced Exponential Backoff
+**Next Up**: Idle Account Detection, Enhanced Exponential Backoff
 
 See [ROADMAP.md](ROADMAP.md) for detailed feature comparison, implementation plans, and future enhancements.
 
