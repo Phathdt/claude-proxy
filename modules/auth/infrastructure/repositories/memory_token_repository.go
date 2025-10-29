@@ -20,7 +20,7 @@ type MemoryTokenRepository struct {
 }
 
 // NewMemoryTokenRepository creates a new in-memory token repository
-func NewMemoryTokenRepository(appLogger sctx.Logger) interfaces.TokenRepository {
+func NewMemoryTokenRepository(appLogger sctx.Logger) interfaces.TokenCacheRepository {
 	logger := appLogger.Withs(sctx.Fields{"component": "memory-token-repository"})
 
 	return &MemoryTokenRepository{

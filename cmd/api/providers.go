@@ -40,46 +40,46 @@ var CloveProviders = fx.Options(
 	fx.Provide(
 		// OAuth client
 		NewOAuthClient,
-		// Infrastructure - Memory Repositories (annotated with group "memory")
+		// Infrastructure - Memory Repositories (cache layer)
 		fx.Annotate(
 			NewMemoryAccountRepository,
-			fx.ResultTags(`name:"memoryAccountRepo"`),
+			fx.ResultTags(`name:"cacheAccountRepo"`),
 		),
 		fx.Annotate(
 			NewMemoryTokenRepository,
-			fx.ResultTags(`name:"memoryTokenRepo"`),
+			fx.ResultTags(`name:"cacheTokenRepo"`),
 		),
 		fx.Annotate(
 			NewMemorySessionRepository,
-			fx.ResultTags(`name:"memorySessionRepo"`),
+			fx.ResultTags(`name:"cacheSessionRepo"`),
 		),
-		// Infrastructure - JSON Repositories (annotated with group "json")
+		// Infrastructure - JSON Repositories (persistence layer)
 		fx.Annotate(
 			NewJSONAccountRepository,
-			fx.ResultTags(`name:"jsonAccountRepo"`),
+			fx.ResultTags(`name:"persistenceAccountRepo"`),
 		),
 		fx.Annotate(
 			NewJSONTokenRepository,
-			fx.ResultTags(`name:"jsonTokenRepo"`),
+			fx.ResultTags(`name:"persistenceTokenRepo"`),
 		),
 		fx.Annotate(
 			NewJSONSessionRepository,
-			fx.ResultTags(`name:"jsonSessionRepo"`),
+			fx.ResultTags(`name:"persistenceSessionRepo"`),
 		),
 		// Infrastructure - Clients
 		NewClaudeAPIClient,
 		// Application - Services (hybrid storage)
 		fx.Annotate(
 			NewTokenService,
-			fx.ParamTags(`name:"memoryTokenRepo"`, `name:"jsonTokenRepo"`),
+			fx.ParamTags(`name:"cacheTokenRepo"`, `name:"persistenceTokenRepo"`, ``),
 		),
 		fx.Annotate(
 			NewAccountService,
-			fx.ParamTags(`name:"memoryAccountRepo"`, `name:"jsonAccountRepo"`, ``, ``),
+			fx.ParamTags(`name:"cacheAccountRepo"`, `name:"persistenceAccountRepo"`, ``, ``),
 		),
 		fx.Annotate(
 			NewSessionService,
-			fx.ParamTags(`name:"memorySessionRepo"`, `name:"jsonSessionRepo"`, ``, ``),
+			fx.ParamTags(`name:"cacheSessionRepo"`, `name:"persistenceSessionRepo"`, ``, ``),
 		),
 		NewProxyService,
 		// Infrastructure - Jobs
@@ -299,18 +299,18 @@ func NewOAuthClient(cfg *config.Config, appLogger sctx.Logger) authinterfaces.OA
 // Memory Repository Providers (Fast in-memory operations)
 // ============================================================================
 
-// NewMemoryAccountRepository creates a new in-memory account repository
-func NewMemoryAccountRepository(appLogger sctx.Logger) authinterfaces.AccountRepository {
+// NewMemoryAccountRepository creates a new in-memory account repository (cache)
+func NewMemoryAccountRepository(appLogger sctx.Logger) authinterfaces.CacheRepository {
 	return authrepos.NewMemoryAccountRepository(appLogger)
 }
 
-// NewMemoryTokenRepository creates a new in-memory token repository
-func NewMemoryTokenRepository(appLogger sctx.Logger) authinterfaces.TokenRepository {
+// NewMemoryTokenRepository creates a new in-memory token repository (cache)
+func NewMemoryTokenRepository(appLogger sctx.Logger) authinterfaces.TokenCacheRepository {
 	return authrepos.NewMemoryTokenRepository(appLogger)
 }
 
-// NewMemorySessionRepository creates a new in-memory session repository
-func NewMemorySessionRepository(appLogger sctx.Logger) authinterfaces.SessionRepository {
+// NewMemorySessionRepository creates a new in-memory session repository (cache)
+func NewMemorySessionRepository(appLogger sctx.Logger) authinterfaces.SessionCacheRepository {
 	return authrepos.NewMemorySessionRepository(appLogger)
 }
 
@@ -318,22 +318,25 @@ func NewMemorySessionRepository(appLogger sctx.Logger) authinterfaces.SessionRep
 // JSON Repository Providers (Persistent storage)
 // ============================================================================
 
-// NewJSONAccountRepository creates a new JSON account repository
-func NewJSONAccountRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.AccountRepository, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "json-account-repository"})
+// NewJSONAccountRepository creates a new JSON account persistence repository
+func NewJSONAccountRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.PersistenceRepository, error) {
+	logger := appLogger.Withs(sctx.Fields{"component": "json-account-persistence-repository"})
 
-	repo, err := authrepos.NewJSONAccountRepository(cfg.Storage.DataFolder)
+	repo, err := authrepos.NewJSONAccountPersistenceRepository(cfg.Storage.DataFolder)
 	if err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create JSON account repository")
-		return nil, fmt.Errorf("failed to create JSON account repository: %w", err)
+		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create JSON account persistence repository")
+		return nil, fmt.Errorf("failed to create JSON account persistence repository: %w", err)
 	}
 
-	logger.Info("JSON account repository initialized successfully")
+	logger.Info("JSON account persistence repository initialized successfully")
 	return repo, nil
 }
 
 // NewJSONTokenRepository creates a new JSON token repository
-func NewJSONTokenRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.TokenRepository, error) {
+func NewJSONTokenRepository(
+	cfg *config.Config,
+	appLogger sctx.Logger,
+) (authinterfaces.TokenPersistenceRepository, error) {
 	logger := appLogger.Withs(sctx.Fields{"component": "json-token-repository"})
 
 	repo, err := authrepos.NewJSONTokenRepository(cfg.Storage.DataFolder)
@@ -347,7 +350,10 @@ func NewJSONTokenRepository(cfg *config.Config, appLogger sctx.Logger) (authinte
 }
 
 // NewJSONSessionRepository creates a new JSON session repository
-func NewJSONSessionRepository(cfg *config.Config, appLogger sctx.Logger) (authinterfaces.SessionRepository, error) {
+func NewJSONSessionRepository(
+	cfg *config.Config,
+	appLogger sctx.Logger,
+) (authinterfaces.SessionPersistenceRepository, error) {
 	if !cfg.Session.Enabled {
 		appLogger.Info("Session limiting disabled, skipping JSON session repository")
 		return nil, nil
@@ -355,7 +361,7 @@ func NewJSONSessionRepository(cfg *config.Config, appLogger sctx.Logger) (authin
 
 	logger := appLogger.Withs(sctx.Fields{"component": "json-session-repository"})
 
-	repo, err := authrepos.NewJSONSessionRepository(cfg.Storage.DataFolder, appLogger)
+	repo, err := authrepos.NewJSONSessionRepository(cfg.Storage.DataFolder)
 	if err != nil {
 		logger.Withs(sctx.Fields{"error": err}).Error("Failed to create JSON session repository")
 		return nil, fmt.Errorf("failed to create JSON session repository: %w", err)
@@ -369,33 +375,33 @@ func NewJSONSessionRepository(cfg *config.Config, appLogger sctx.Logger) (authin
 // Service Providers (Hybrid storage - inject both memory and JSON repos)
 // ============================================================================
 
-// NewTokenService creates a new token service with hybrid storage
+// NewTokenService creates a new token service with cache and persistence layers
 func NewTokenService(
-	memoryRepo authinterfaces.TokenRepository,
-	jsonRepo authinterfaces.TokenRepository,
+	cacheRepo authinterfaces.TokenCacheRepository,
+	persistenceRepo authinterfaces.TokenPersistenceRepository,
 	appLogger sctx.Logger,
 ) authinterfaces.TokenService {
-	return authservices.NewTokenService(memoryRepo, jsonRepo, appLogger)
+	return authservices.NewTokenService(cacheRepo, persistenceRepo, appLogger)
 }
 
-// NewAccountService creates a new account service with hybrid storage
+// NewAccountService creates a new account service with cache and persistence layers
 func NewAccountService(
-	memoryRepo authinterfaces.AccountRepository,
-	jsonRepo authinterfaces.AccountRepository,
+	cacheRepo authinterfaces.CacheRepository,
+	persistenceRepo authinterfaces.PersistenceRepository,
 	oauthClient authinterfaces.OAuthClient,
 	appLogger sctx.Logger,
 ) authinterfaces.AccountService {
-	return authservices.NewAccountService(memoryRepo, jsonRepo, oauthClient, appLogger)
+	return authservices.NewAccountService(cacheRepo, persistenceRepo, oauthClient, appLogger)
 }
 
-// NewSessionService creates a new session service with hybrid storage
+// NewSessionService creates a new session service with cache and persistence layers
 func NewSessionService(
-	memoryRepo authinterfaces.SessionRepository,
-	jsonRepo authinterfaces.SessionRepository,
+	cacheRepo authinterfaces.SessionCacheRepository,
+	persistenceRepo authinterfaces.SessionPersistenceRepository,
 	cfg *config.Config,
 	appLogger sctx.Logger,
 ) authinterfaces.SessionService {
-	return authservices.NewSessionService(memoryRepo, jsonRepo, cfg, appLogger)
+	return authservices.NewSessionService(cacheRepo, persistenceRepo, cfg, appLogger)
 }
 
 // NewProxyService creates a new proxy service (only injects auth services)

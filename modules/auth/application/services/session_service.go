@@ -18,68 +18,69 @@ import (
 	sctx "github.com/phathdt/service-context"
 )
 
-// SessionService implements session management with hybrid storage
+// SessionService implements session management with hybrid storage pattern
+// Uses SessionCacheRepository for fast in-memory access and SessionPersistenceRepository for durability
 type SessionService struct {
-	memoryRepo    interfaces.SessionRepository
-	jsonRepo      interfaces.SessionRepository
-	maxConcurrent int
-	sessionTTL    time.Duration
-	enabled       bool
-	dirty         bool
-	mu            sync.RWMutex
-	logger        sctx.Logger
+	cacheRepo       interfaces.SessionCacheRepository
+	persistenceRepo interfaces.SessionPersistenceRepository
+	maxConcurrent   int
+	sessionTTL      time.Duration
+	enabled         bool
+	dirty           bool
+	mu              sync.RWMutex
+	logger          sctx.Logger
 }
 
-// NewSessionService creates a new session service
+// NewSessionService creates a new session service with cache and persistence layers
 func NewSessionService(
-	memoryRepo interfaces.SessionRepository,
-	jsonRepo interfaces.SessionRepository,
+	cacheRepo interfaces.SessionCacheRepository,
+	persistenceRepo interfaces.SessionPersistenceRepository,
 	cfg *config.Config,
 	appLogger sctx.Logger,
 ) interfaces.SessionService {
 	logger := appLogger.Withs(sctx.Fields{"component": "session-service"})
 
 	svc := &SessionService{
-		memoryRepo:    memoryRepo,
-		jsonRepo:      jsonRepo,
-		maxConcurrent: cfg.Session.MaxConcurrent,
-		sessionTTL:    cfg.Session.SessionTTL,
-		enabled:       cfg.Session.Enabled,
-		dirty:         false,
-		logger:        logger,
+		cacheRepo:       cacheRepo,
+		persistenceRepo: persistenceRepo,
+		maxConcurrent:   cfg.Session.MaxConcurrent,
+		sessionTTL:      cfg.Session.SessionTTL,
+		enabled:         cfg.Session.Enabled,
+		dirty:           false,
+		logger:          logger,
 	}
 
-	// Load from JSON into memory on init
-	if svc.enabled && jsonRepo != nil {
-		if err := svc.loadFromJSON(); err != nil {
-			logger.Withs(sctx.Fields{"error": err}).Warn("Failed to load sessions from JSON")
+	// Load from persistent storage into cache on init
+	if svc.enabled && persistenceRepo != nil {
+		if err := svc.loadFromPersistence(); err != nil {
+			logger.Withs(sctx.Fields{"error": err}).Warn("Failed to load sessions from persistence")
 		}
 	}
 
 	return svc
 }
 
-// loadFromJSON loads all sessions from JSON into memory
-func (s *SessionService) loadFromJSON() error {
+// loadFromPersistence loads all sessions from persistent storage into cache
+func (s *SessionService) loadFromPersistence() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessions, err := s.jsonRepo.ListAllSessions(context.Background())
+	sessions, err := s.persistenceRepo.LoadAll(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to list sessions from JSON: %w", err)
+		return fmt.Errorf("failed to load sessions from persistence: %w", err)
 	}
 
-	// Load each session into memory
+	// Load each session into cache
 	for _, session := range sessions {
-		if err := s.memoryRepo.CreateSession(context.Background(), session); err != nil {
+		if err := s.cacheRepo.CreateSession(context.Background(), session); err != nil {
 			s.logger.Withs(sctx.Fields{
 				"session_id": session.ID,
 				"error":      err,
-			}).Warn("Failed to load session into memory")
+			}).Warn("Failed to load session into cache")
 		}
 	}
 
-	s.logger.Withs(sctx.Fields{"count": len(sessions)}).Info("Sessions loaded from JSON to memory")
+	s.logger.Withs(sctx.Fields{"count": len(sessions)}).Info("Sessions loaded from persistence to cache")
 	return nil
 }
 
@@ -104,9 +105,9 @@ func (s *SessionService) clearDirty() {
 	s.dirty = false
 }
 
-// Sync syncs in-memory data to JSON (called every 1 minute)
+// Sync syncs cache data to persistent storage (called every 1 minute)
 func (s *SessionService) Sync(ctx context.Context) error {
-	if !s.enabled || s.jsonRepo == nil {
+	if !s.enabled || s.persistenceRepo == nil {
 		return nil
 	}
 
@@ -114,41 +115,24 @@ func (s *SessionService) Sync(ctx context.Context) error {
 		return nil // No changes, skip sync
 	}
 
-	s.logger.Debug("Syncing sessions to JSON")
+	s.logger.Debug("Syncing sessions to persistent storage")
 
-	// Get all sessions from memory
-	sessions, err := s.memoryRepo.ListAllSessions(ctx)
+	// Get all sessions from cache
+	sessions, err := s.cacheRepo.ListAllSessions(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list sessions from memory: %w", err)
+		return fmt.Errorf("failed to list sessions from cache: %w", err)
 	}
 
-	// Sync each session to JSON
-	for _, session := range sessions {
-		// Check if exists in JSON
-		existing, err := s.jsonRepo.GetSession(ctx, session.ID)
-		if err != nil {
-			// Doesn't exist, create
-			if err := s.jsonRepo.CreateSession(ctx, session); err != nil {
-				s.logger.Withs(sctx.Fields{
-					"session_id": session.ID,
-					"error":      err,
-				}).Error("Failed to create session in JSON")
-				continue
-			}
-		} else if existing != nil {
-			// Exists, update
-			if err := s.jsonRepo.UpdateSession(ctx, session); err != nil {
-				s.logger.Withs(sctx.Fields{
-					"session_id": session.ID,
-					"error":      err,
-				}).Error("Failed to update session in JSON")
-				continue
-			}
-		}
+	// Batch save all sessions to persistent storage
+	if err := s.persistenceRepo.SaveAll(ctx, sessions); err != nil {
+		s.logger.Withs(sctx.Fields{
+			"error": err,
+		}).Error("Failed to save sessions to persistence")
+		return fmt.Errorf("failed to save sessions: %w", err)
 	}
 
 	s.clearDirty()
-	s.logger.Withs(sctx.Fields{"count": len(sessions)}).Info("Sessions synced to JSON")
+	s.logger.Withs(sctx.Fields{"count": len(sessions)}).Info("Sessions synced to persistent storage")
 	return nil
 }
 
@@ -165,7 +149,7 @@ func (s *SessionService) CreateSession(
 	req *http.Request,
 ) (*entities.Session, error) {
 	// If session limiting is disabled, skip
-	if !s.enabled || s.memoryRepo == nil {
+	if !s.enabled || s.cacheRepo == nil {
 		return nil, nil
 	}
 
@@ -178,7 +162,7 @@ func (s *SessionService) CreateSession(
 	if existingSession != nil {
 		// Reuse existing session - just refresh it
 		existingSession.Refresh(s.sessionTTL)
-		if err := s.memoryRepo.UpdateSession(ctx, existingSession); err != nil {
+		if err := s.cacheRepo.UpdateSession(ctx, existingSession); err != nil {
 			s.logger.Withs(sctx.Fields{"error": err}).Warn("Failed to refresh existing session")
 		} else {
 			s.markDirty()
@@ -191,7 +175,7 @@ func (s *SessionService) CreateSession(
 	}
 
 	// No existing session found - check global active session count
-	activeCount, err := s.memoryRepo.CountActiveSessions(ctx)
+	activeCount, err := s.cacheRepo.CountActiveSessions(ctx)
 	if err != nil {
 		s.logger.Withs(sctx.Fields{"error": err}).Error("Failed to count active sessions")
 		return nil, fmt.Errorf("failed to count active sessions: %w", err)
@@ -228,7 +212,7 @@ func (s *SessionService) CreateSession(
 	}
 
 	// Save to memory
-	if err := s.memoryRepo.CreateSession(ctx, session); err != nil {
+	if err := s.cacheRepo.CreateSession(ctx, session); err != nil {
 		s.logger.Withs(sctx.Fields{"error": err}).Error("Failed to create session")
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -259,7 +243,7 @@ func (s *SessionService) findExistingSession(
 	ctx context.Context,
 	ipWithoutPort, userAgent string,
 ) *entities.Session {
-	sessions, err := s.memoryRepo.ListAllSessions(ctx)
+	sessions, err := s.cacheRepo.ListAllSessions(ctx)
 	if err != nil {
 		return nil
 	}
@@ -281,11 +265,11 @@ func (s *SessionService) findExistingSession(
 
 // ValidateSession checks if a session is valid and within limits
 func (s *SessionService) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
-	if !s.enabled || s.memoryRepo == nil {
+	if !s.enabled || s.cacheRepo == nil {
 		return true, nil
 	}
 
-	session, err := s.memoryRepo.GetSession(ctx, sessionID)
+	session, err := s.cacheRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return false, err
 	}
@@ -299,18 +283,18 @@ func (s *SessionService) ValidateSession(ctx context.Context, sessionID string) 
 
 // RefreshSession extends session TTL
 func (s *SessionService) RefreshSession(ctx context.Context, sessionID string) error {
-	if !s.enabled || s.memoryRepo == nil {
+	if !s.enabled || s.cacheRepo == nil {
 		return nil
 	}
 
-	session, err := s.memoryRepo.GetSession(ctx, sessionID)
+	session, err := s.cacheRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 
 	session.Refresh(s.sessionTTL)
 
-	if err := s.memoryRepo.UpdateSession(ctx, session); err != nil {
+	if err := s.cacheRepo.UpdateSession(ctx, session); err != nil {
 		s.logger.Withs(sctx.Fields{"error": err, "session_id": sessionID}).Error("Failed to refresh session")
 		return fmt.Errorf("failed to refresh session: %w", err)
 	}
@@ -322,11 +306,11 @@ func (s *SessionService) RefreshSession(ctx context.Context, sessionID string) e
 
 // RevokeSession manually revokes a session
 func (s *SessionService) RevokeSession(ctx context.Context, sessionID string) error {
-	if !s.enabled || s.memoryRepo == nil {
+	if !s.enabled || s.cacheRepo == nil {
 		return fmt.Errorf("session limiting is not enabled")
 	}
 
-	if err := s.memoryRepo.DeleteSession(ctx, sessionID); err != nil {
+	if err := s.cacheRepo.DeleteSession(ctx, sessionID); err != nil {
 		s.logger.Withs(sctx.Fields{"error": err, "session_id": sessionID}).Error("Failed to revoke session")
 		return fmt.Errorf("failed to revoke session: %w", err)
 	}
@@ -338,19 +322,19 @@ func (s *SessionService) RevokeSession(ctx context.Context, sessionID string) er
 
 // GetAllSessions retrieves all active sessions (admin)
 func (s *SessionService) GetAllSessions(ctx context.Context) ([]*entities.Session, error) {
-	if !s.enabled || s.memoryRepo == nil {
+	if !s.enabled || s.cacheRepo == nil {
 		return []*entities.Session{}, nil
 	}
-	return s.memoryRepo.ListAllSessions(ctx)
+	return s.cacheRepo.ListAllSessions(ctx)
 }
 
 // CleanupExpiredSessions removes expired sessions
 func (s *SessionService) CleanupExpiredSessions(ctx context.Context) (int, error) {
-	if !s.enabled || s.memoryRepo == nil {
+	if !s.enabled || s.cacheRepo == nil {
 		return 0, nil
 	}
 
-	count, err := s.memoryRepo.CleanupExpiredSessions(ctx)
+	count, err := s.cacheRepo.CleanupExpiredSessions(ctx)
 	if err != nil {
 		s.logger.Withs(sctx.Fields{"error": err}).Error("Failed to cleanup expired sessions")
 		return 0, err

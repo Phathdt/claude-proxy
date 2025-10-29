@@ -7,297 +7,230 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
+	"claude-proxy/modules/auth/application/dto"
 	"claude-proxy/modules/auth/domain/entities"
 	"claude-proxy/modules/auth/domain/interfaces"
-
-	sctx "github.com/phathdt/service-context"
 )
 
-// JSONSessionRepository implements session repository with JSON file persistence
+// JSONSessionRepository implements SessionPersistenceRepository using JSON file storage
+// This repository ONLY handles disk I/O, no in-memory caching
 type JSONSessionRepository struct {
-	filePath string
-	sessions map[string]*entities.Session // sessionID -> session
-	tokens   map[string][]string          // tokenID -> []sessionID
-	mu       sync.RWMutex
-	logger   sctx.Logger
+	dataFolder string
+	mu         sync.RWMutex // Only for file I/O concurrency control
 }
 
-// NewJSONSessionRepository creates a new JSON-based session repository
-func NewJSONSessionRepository(dataFolder string, appLogger sctx.Logger) (interfaces.SessionRepository, error) {
-	logger := appLogger.Withs(sctx.Fields{"component": "json-session-repository"})
-
-	// Ensure data folder exists
-	if err := os.MkdirAll(dataFolder, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create data folder: %w", err)
-	}
-
-	filePath := filepath.Join(dataFolder, "sessions.json")
-
+// NewJSONSessionRepository creates a new JSON session repository
+func NewJSONSessionRepository(dataFolder string) (interfaces.SessionPersistenceRepository, error) {
 	repo := &JSONSessionRepository{
-		filePath: filePath,
-		sessions: make(map[string]*entities.Session),
-		tokens:   make(map[string][]string),
-		logger:   logger,
+		dataFolder: expandPath(dataFolder),
 	}
 
-	// Load existing sessions from file
-	if err := repo.load(); err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Warn("Failed to load sessions from file, starting fresh")
+	// Create data folder if it doesn't exist
+	if err := os.MkdirAll(repo.dataFolder, 0o700); err != nil {
+		return nil, fmt.Errorf("failed to create data folder: %w", err)
 	}
 
 	return repo, nil
 }
 
-// load reads sessions from JSON file
-func (r *JSONSessionRepository) load() error {
+// SaveAll persists all sessions to durable storage (batch operation)
+func (r *JSONSessionRepository) SaveAll(ctx context.Context, sessions []*entities.Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check if file exists
-	if _, err := os.Stat(r.filePath); os.IsNotExist(err) {
-		return nil // No file yet, start with empty
-	}
+	sessionsFile := filepath.Join(r.dataFolder, "sessions.json")
 
-	// Read file
-	data, err := os.ReadFile(r.filePath)
-	if err != nil {
-		return fmt.Errorf("failed to read sessions file: %w", err)
-	}
-
-	// Parse JSON
-	var sessions []*entities.Session
-	if err := json.Unmarshal(data, &sessions); err != nil {
-		return fmt.Errorf("failed to unmarshal sessions: %w", err)
-	}
-
-	// Build indexes
+	// Convert entities to DTOs
+	dtos := make([]*dto.SessionPersistenceDTO, 0, len(sessions))
 	for _, session := range sessions {
-		r.sessions[session.ID] = session
-
-		// Add to token index
-		if _, exists := r.tokens[session.TokenID]; !exists {
-			r.tokens[session.TokenID] = []string{}
-		}
-		r.tokens[session.TokenID] = append(r.tokens[session.TokenID], session.ID)
-	}
-
-	r.logger.Withs(sctx.Fields{"count": len(sessions)}).Info("Sessions loaded from file")
-	return nil
-}
-
-// save writes sessions to JSON file
-func (r *JSONSessionRepository) save() error {
-	// Convert map to slice
-	sessions := make([]*entities.Session, 0, len(r.sessions))
-	for _, session := range r.sessions {
-		sessions = append(sessions, session)
+		dtos = append(dtos, dto.ToSessionPersistenceDTO(session))
 	}
 
 	// Marshal to JSON
-	data, err := json.MarshalIndent(sessions, "", "  ")
+	data, err := json.MarshalIndent(dtos, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal sessions: %w", err)
 	}
 
-	// Write to file
-	if err := os.WriteFile(r.filePath, data, 0o644); err != nil {
+	// Write to temporary file first (atomic write)
+	tmpFile := sessionsFile + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write sessions file: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpFile, sessionsFile); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("failed to rename sessions file: %w", err)
 	}
 
 	return nil
 }
 
-// CreateSession stores a new session in JSON file
+// LoadAll loads all sessions from durable storage
+func (r *JSONSessionRepository) LoadAll(ctx context.Context) ([]*entities.Session, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	sessionsFile := filepath.Join(r.dataFolder, "sessions.json")
+
+	data, err := os.ReadFile(sessionsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*entities.Session{}, nil // No sessions yet
+		}
+		return nil, fmt.Errorf("failed to read sessions file: %w", err)
+	}
+
+	var dtos []*dto.SessionPersistenceDTO
+	if err := json.Unmarshal(data, &dtos); err != nil {
+		return nil, fmt.Errorf("failed to parse sessions file: %w", err)
+	}
+
+	sessions := make([]*entities.Session, 0, len(dtos))
+	for _, d := range dtos {
+		sessions = append(sessions, dto.FromSessionPersistenceDTO(d))
+	}
+
+	return sessions, nil
+}
+
+// CreateSession creates and persists a new session
 func (r *JSONSessionRepository) CreateSession(ctx context.Context, session *entities.Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Store session
-	r.sessions[session.ID] = session
-
-	// Add to token index
-	if _, exists := r.tokens[session.TokenID]; !exists {
-		r.tokens[session.TokenID] = []string{}
-	}
-	r.tokens[session.TokenID] = append(r.tokens[session.TokenID], session.ID)
-
-	// Persist to file
-	if err := r.save(); err != nil {
-		r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions to file")
+	// Load all existing sessions
+	sessions, err := r.loadFromDisk()
+	if err != nil {
 		return err
 	}
 
-	r.logger.Withs(sctx.Fields{
-		"session_id": session.ID,
-		"token_id":   session.TokenID,
-	}).Debug("Session created and persisted")
-
-	return nil
-}
-
-// GetSession retrieves a session by ID
-func (r *JSONSessionRepository) GetSession(ctx context.Context, sessionID string) (*entities.Session, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	session, exists := r.sessions[sessionID]
-	if !exists {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+	// Check for duplicates
+	for _, s := range sessions {
+		if s.ID == session.ID {
+			return fmt.Errorf("session with ID already exists: %s", session.ID)
+		}
 	}
 
-	return session, nil
+	// Add new session
+	sessions = append(sessions, session)
+
+	// Save all back to disk
+	return r.saveToDisk(sessions)
 }
 
-// UpdateSession updates an existing session
+// UpdateSession updates and persists an existing session
 func (r *JSONSessionRepository) UpdateSession(ctx context.Context, session *entities.Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.sessions[session.ID]; !exists {
-		return fmt.Errorf("session not found: %s", session.ID)
-	}
-
-	r.sessions[session.ID] = session
-
-	// Persist to file
-	if err := r.save(); err != nil {
-		r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions to file")
+	// Load all existing sessions
+	sessions, err := r.loadFromDisk()
+	if err != nil {
 		return err
 	}
 
-	r.logger.Withs(sctx.Fields{"session_id": session.ID}).Debug("Session updated and persisted")
-	return nil
+	// Find and update the session
+	found := false
+	for i, s := range sessions {
+		if s.ID == session.ID {
+			sessions[i] = session
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("session not found: %s", session.ID)
+	}
+
+	// Save all back to disk
+	return r.saveToDisk(sessions)
 }
 
-// DeleteSession removes a session by ID
+// DeleteSession deletes a session from persistent storage
 func (r *JSONSessionRepository) DeleteSession(ctx context.Context, sessionID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	session, exists := r.sessions[sessionID]
-	if !exists {
-		return fmt.Errorf("session not found: %s", sessionID)
-	}
-
-	// Remove from sessions map
-	delete(r.sessions, sessionID)
-
-	// Remove from token index
-	r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
-	if len(r.tokens[session.TokenID]) == 0 {
-		delete(r.tokens, session.TokenID)
-	}
-
-	// Persist to file
-	if err := r.save(); err != nil {
-		r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions to file")
+	// Load all existing sessions
+	sessions, err := r.loadFromDisk()
+	if err != nil {
 		return err
 	}
 
-	r.logger.Withs(sctx.Fields{"session_id": sessionID}).Debug("Session deleted and persisted")
+	// Find and remove the session
+	found := false
+	for i, s := range sessions {
+		if s.ID == sessionID {
+			sessions = append(sessions[:i], sessions[i+1:]...)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("session not found: %s", sessionID)
+	}
+
+	// Save all back to disk
+	return r.saveToDisk(sessions)
+}
+
+// loadFromDisk loads sessions from disk (internal helper, requires lock)
+func (r *JSONSessionRepository) loadFromDisk() ([]*entities.Session, error) {
+	sessionsFile := filepath.Join(r.dataFolder, "sessions.json")
+
+	data, err := os.ReadFile(sessionsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*entities.Session{}, nil
+		}
+		return nil, fmt.Errorf("failed to read sessions file: %w", err)
+	}
+
+	var dtos []*dto.SessionPersistenceDTO
+	if err := json.Unmarshal(data, &dtos); err != nil {
+		return nil, fmt.Errorf("failed to parse sessions file: %w", err)
+	}
+
+	sessions := make([]*entities.Session, 0, len(dtos))
+	for _, d := range dtos {
+		sessions = append(sessions, dto.FromSessionPersistenceDTO(d))
+	}
+
+	return sessions, nil
+}
+
+// saveToDisk saves sessions to disk (internal helper, requires lock)
+func (r *JSONSessionRepository) saveToDisk(sessions []*entities.Session) error {
+	sessionsFile := filepath.Join(r.dataFolder, "sessions.json")
+
+	// Convert entities to DTOs
+	dtos := make([]*dto.SessionPersistenceDTO, 0, len(sessions))
+	for _, session := range sessions {
+		dtos = append(dtos, dto.ToSessionPersistenceDTO(session))
+	}
+
+	// Marshal to JSON
+	data, err := json.MarshalIndent(dtos, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal sessions: %w", err)
+	}
+
+	// Write to temporary file first
+	tmpFile := sessionsFile + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0o600); err != nil {
+		return fmt.Errorf("failed to write sessions file: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpFile, sessionsFile); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("failed to rename sessions file: %w", err)
+	}
+
 	return nil
-}
-
-// CountActiveSessions counts total active (non-expired) sessions globally
-func (r *JSONSessionRepository) CountActiveSessions(ctx context.Context) (int, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	count := 0
-	now := time.Now()
-	for _, session := range r.sessions {
-		if session.IsActive && now.Before(session.ExpiresAt) {
-			count++
-		}
-	}
-
-	return count, nil
-}
-
-// CleanupExpiredSessions removes all expired sessions
-func (r *JSONSessionRepository) CleanupExpiredSessions(ctx context.Context) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	now := time.Now()
-	expiredSessions := []string{}
-
-	// Find expired sessions
-	for sessionID, session := range r.sessions {
-		if now.After(session.ExpiresAt) {
-			expiredSessions = append(expiredSessions, sessionID)
-		}
-	}
-
-	// Remove expired sessions
-	for _, sessionID := range expiredSessions {
-		session := r.sessions[sessionID]
-		delete(r.sessions, sessionID)
-
-		// Remove from token index
-		r.tokens[session.TokenID] = r.removeFromSlice(r.tokens[session.TokenID], sessionID)
-		if len(r.tokens[session.TokenID]) == 0 {
-			delete(r.tokens, session.TokenID)
-		}
-	}
-
-	// Persist to file if any sessions were cleaned up
-	if len(expiredSessions) > 0 {
-		if err := r.save(); err != nil {
-			r.logger.Withs(sctx.Fields{"error": err}).Error("Failed to save sessions after cleanup")
-			return len(expiredSessions), err
-		}
-
-		r.logger.Withs(sctx.Fields{"count": len(expiredSessions)}).Debug("Expired sessions cleaned up and persisted")
-	}
-
-	return len(expiredSessions), nil
-}
-
-// ListAllSessions retrieves all sessions
-func (r *JSONSessionRepository) ListAllSessions(ctx context.Context) ([]*entities.Session, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	sessions := make([]*entities.Session, 0, len(r.sessions))
-	for _, session := range r.sessions {
-		sessions = append(sessions, session)
-	}
-
-	return sessions, nil
-}
-
-// ListSessionsByToken retrieves all sessions for a token
-func (r *JSONSessionRepository) ListSessionsByToken(
-	ctx context.Context,
-	tokenID string,
-) ([]*entities.Session, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	sessionIDs, exists := r.tokens[tokenID]
-	if !exists {
-		return []*entities.Session{}, nil
-	}
-
-	sessions := make([]*entities.Session, 0, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		if session, exists := r.sessions[sessionID]; exists {
-			sessions = append(sessions, session)
-		}
-	}
-
-	return sessions, nil
-}
-
-// Helper function to remove an element from a slice
-func (r *JSONSessionRepository) removeFromSlice(slice []string, value string) []string {
-	for i, v := range slice {
-		if v == value {
-			return append(slice[:i], slice[i+1:]...)
-		}
-	}
-	return slice
 }

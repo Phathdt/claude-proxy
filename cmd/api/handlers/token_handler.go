@@ -128,7 +128,7 @@ func (h *TokenHandler) CreateToken(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"message": "Token created successfully",
-		"token":   dto.ToTokenResponse(token),
+		"token":   dto.ToTokenResponseWithFullKey(token), // Return full key on create
 	})
 }
 
@@ -148,14 +148,47 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 		return
 	}
 
+	// Get existing token to use as defaults for unspecified fields
+	existingToken, err := h.tokenService.GetTokenByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": err.Error(),
+			},
+		})
+		return
+	}
+
+	// Use existing values if not provided in request
+	name := existingToken.Name
+	if req.Name != nil {
+		name = *req.Name
+	}
+
+	key := existingToken.Key
+	if req.Key != nil {
+		key = *req.Key
+	}
+
+	status := existingToken.Status
+	if req.Status != nil {
+		status = entities.TokenStatus(*req.Status)
+	}
+
+	role := existingToken.Role
+	if req.Role != nil {
+		role = entities.TokenRole(*req.Role)
+	}
+
 	// Call service to update token
 	token, err := h.tokenService.UpdateToken(
 		c.Request.Context(),
 		id,
-		req.Name,
-		req.Key,
-		entities.TokenStatus(req.Status),
-		entities.TokenRole(req.Role),
+		name,
+		key,
+		status,
+		role,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

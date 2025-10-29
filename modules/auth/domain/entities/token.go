@@ -21,6 +21,7 @@ type TokenStatus string
 const (
 	TokenStatusActive   TokenStatus = "active"
 	TokenStatusInactive TokenStatus = "inactive"
+	TokenStatusRevoked  TokenStatus = "revoked"
 )
 
 // TokenRole represents the role of a token
@@ -56,6 +57,11 @@ func (t *Token) Deactivate() {
 // Activate activates the token
 func (t *Token) Activate() {
 	t.Status = TokenStatusActive
+}
+
+// Revoke revokes the token (permanent deactivation)
+func (t *Token) Revoke() {
+	t.Status = TokenStatusRevoked
 }
 
 // Update updates the token's name, key, status and role

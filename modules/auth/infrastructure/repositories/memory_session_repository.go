@@ -21,7 +21,7 @@ type MemorySessionRepository struct {
 }
 
 // NewMemorySessionRepository creates a new in-memory session repository
-func NewMemorySessionRepository(appLogger sctx.Logger) interfaces.SessionRepository {
+func NewMemorySessionRepository(appLogger sctx.Logger) interfaces.SessionCacheRepository {
 	logger := appLogger.Withs(sctx.Fields{"component": "memory-session-repository"})
 
 	return &MemorySessionRepository{

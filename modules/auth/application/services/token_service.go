@@ -16,59 +16,60 @@ import (
 	"github.com/phathdt/service-context/core"
 )
 
-// TokenService implements token management with hybrid storage
+// TokenService implements token management with hybrid storage pattern
+// Uses TokenCacheRepository for fast in-memory access and TokenPersistenceRepository for durability
 type TokenService struct {
-	memoryRepo interfaces.TokenRepository
-	jsonRepo   interfaces.TokenRepository
-	dirty      bool
-	mu         sync.RWMutex
-	logger     sctx.Logger
+	cacheRepo       interfaces.TokenCacheRepository
+	persistenceRepo interfaces.TokenPersistenceRepository
+	dirty           bool
+	mu              sync.RWMutex
+	logger          sctx.Logger
 }
 
-// NewTokenService creates a new token service
+// NewTokenService creates a new token service with cache and persistence layers
 func NewTokenService(
-	memoryRepo interfaces.TokenRepository,
-	jsonRepo interfaces.TokenRepository,
+	cacheRepo interfaces.TokenCacheRepository,
+	persistenceRepo interfaces.TokenPersistenceRepository,
 	appLogger sctx.Logger,
 ) interfaces.TokenService {
 	logger := appLogger.Withs(sctx.Fields{"component": "token-service"})
 
 	svc := &TokenService{
-		memoryRepo: memoryRepo,
-		jsonRepo:   jsonRepo,
-		dirty:      false,
-		logger:     logger,
+		cacheRepo:       cacheRepo,
+		persistenceRepo: persistenceRepo,
+		dirty:           false,
+		logger:          logger,
 	}
 
-	// Load from JSON into memory on init
-	if err := svc.loadFromJSON(); err != nil {
-		logger.Withs(sctx.Fields{"error": err}).Warn("Failed to load tokens from JSON")
+	// Load from persistent storage into cache on init
+	if err := svc.loadFromPersistence(); err != nil {
+		logger.Withs(sctx.Fields{"error": err}).Warn("Failed to load tokens from persistence")
 	}
 
 	return svc
 }
 
-// loadFromJSON loads all tokens from JSON into memory
-func (s *TokenService) loadFromJSON() error {
+// loadFromPersistence loads all tokens from persistent storage into cache
+func (s *TokenService) loadFromPersistence() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tokens, err := s.jsonRepo.List(context.Background())
+	tokens, err := s.persistenceRepo.LoadAll(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to list tokens from JSON: %w", err)
+		return fmt.Errorf("failed to load tokens from persistence: %w", err)
 	}
 
-	// Load each token into memory
+	// Load each token into cache
 	for _, token := range tokens {
-		if err := s.memoryRepo.Create(context.Background(), token); err != nil {
+		if err := s.cacheRepo.Create(context.Background(), token); err != nil {
 			s.logger.Withs(sctx.Fields{
 				"token_id": token.ID,
 				"error":    err,
-			}).Warn("Failed to load token into memory")
+			}).Warn("Failed to load token into cache")
 		}
 	}
 
-	s.logger.Withs(sctx.Fields{"count": len(tokens)}).Info("Tokens loaded from JSON to memory")
+	s.logger.Withs(sctx.Fields{"count": len(tokens)}).Info("Tokens loaded from persistence to cache")
 	return nil
 }
 
@@ -93,47 +94,30 @@ func (s *TokenService) clearDirty() {
 	s.dirty = false
 }
 
-// Sync syncs in-memory data to JSON (called every 1 minute)
+// Sync syncs cache data to persistent storage (called every 1 minute)
 func (s *TokenService) Sync(ctx context.Context) error {
 	if !s.isDirty() {
 		return nil // No changes, skip sync
 	}
 
-	s.logger.Debug("Syncing tokens to JSON")
+	s.logger.Debug("Syncing tokens to persistent storage")
 
-	// Get all tokens from memory
-	tokens, err := s.memoryRepo.List(ctx)
+	// Get all tokens from cache
+	tokens, err := s.cacheRepo.List(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list tokens from memory: %w", err)
+		return fmt.Errorf("failed to list tokens from cache: %w", err)
 	}
 
-	// Sync each token to JSON
-	for _, token := range tokens {
-		// Check if exists in JSON
-		existing, err := s.jsonRepo.GetByID(ctx, token.ID)
-		if err != nil {
-			// Doesn't exist, create
-			if err := s.jsonRepo.Create(ctx, token); err != nil {
-				s.logger.Withs(sctx.Fields{
-					"token_id": token.ID,
-					"error":    err,
-				}).Error("Failed to create token in JSON")
-				continue
-			}
-		} else if existing != nil {
-			// Exists, update
-			if err := s.jsonRepo.Update(ctx, token); err != nil {
-				s.logger.Withs(sctx.Fields{
-					"token_id": token.ID,
-					"error":    err,
-				}).Error("Failed to update token in JSON")
-				continue
-			}
-		}
+	// Batch save all tokens to persistent storage
+	if err := s.persistenceRepo.SaveAll(ctx, tokens); err != nil {
+		s.logger.Withs(sctx.Fields{
+			"error": err,
+		}).Error("Failed to save tokens to persistence")
+		return fmt.Errorf("failed to save tokens: %w", err)
 	}
 
 	s.clearDirty()
-	s.logger.Withs(sctx.Fields{"count": len(tokens)}).Info("Tokens synced to JSON")
+	s.logger.Withs(sctx.Fields{"count": len(tokens)}).Info("Tokens synced to persistent storage")
 	return nil
 }
 
@@ -168,7 +152,7 @@ func (s *TokenService) CreateToken(
 		UpdatedAt:  now,
 	}
 
-	if err := s.memoryRepo.Create(ctx, token); err != nil {
+	if err := s.cacheRepo.Create(ctx, token); err != nil {
 		return nil, err
 	}
 
@@ -179,12 +163,12 @@ func (s *TokenService) CreateToken(
 
 // GetTokenByID retrieves a token by ID
 func (s *TokenService) GetTokenByID(ctx context.Context, id string) (*entities.Token, error) {
-	return s.memoryRepo.GetByID(ctx, id)
+	return s.cacheRepo.GetByID(ctx, id)
 }
 
 // GetTokenByKey retrieves a token by its key
 func (s *TokenService) GetTokenByKey(ctx context.Context, key string) (*entities.Token, error) {
-	return s.memoryRepo.GetByKey(ctx, key)
+	return s.cacheRepo.GetByKey(ctx, key)
 }
 
 // ListTokens retrieves tokens with optional filtering and pagination
@@ -194,8 +178,8 @@ func (s *TokenService) ListTokens(
 	query *dto.TokenQueryParams,
 	paging *core.Paging,
 ) ([]*entities.Token, error) {
-	// Get all tokens from memory
-	allTokens, err := s.memoryRepo.List(ctx)
+	// Get all tokens from cache
+	allTokens, err := s.cacheRepo.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -255,14 +239,14 @@ func (s *TokenService) UpdateToken(
 	role entities.TokenRole,
 ) (*entities.Token, error) {
 	// Get existing token
-	token, err := s.memoryRepo.GetByID(ctx, id)
+	token, err := s.cacheRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("token not found: %w", err)
 	}
 
 	// Check if key is being changed and if it already exists in another token
 	if token.Key != key {
-		existingToken, err := s.memoryRepo.GetByKey(ctx, key)
+		existingToken, err := s.cacheRepo.GetByKey(ctx, key)
 		if err == nil && existingToken != nil && existingToken.ID != id {
 			return nil, fmt.Errorf("token with key already exists")
 		}
@@ -275,7 +259,7 @@ func (s *TokenService) UpdateToken(
 	token.Role = role
 	token.UpdatedAt = time.Now()
 
-	if err := s.memoryRepo.Update(ctx, token); err != nil {
+	if err := s.cacheRepo.Update(ctx, token); err != nil {
 		return nil, err
 	}
 
@@ -286,7 +270,7 @@ func (s *TokenService) UpdateToken(
 
 // DeleteToken deletes a token by ID
 func (s *TokenService) DeleteToken(ctx context.Context, id string) error {
-	if err := s.memoryRepo.Delete(ctx, id); err != nil {
+	if err := s.cacheRepo.Delete(ctx, id); err != nil {
 		return err
 	}
 
@@ -297,7 +281,7 @@ func (s *TokenService) DeleteToken(ctx context.Context, id string) error {
 
 // ValidateToken validates a token key and returns the token if valid
 func (s *TokenService) ValidateToken(ctx context.Context, key string) (*entities.Token, error) {
-	token, err := s.memoryRepo.GetByKey(ctx, key)
+	token, err := s.cacheRepo.GetByKey(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("token not found")
 	}
@@ -309,7 +293,7 @@ func (s *TokenService) ValidateToken(ctx context.Context, key string) (*entities
 
 	// Update usage count and last used time
 	token.IncrementUsage()
-	if err := s.memoryRepo.Update(ctx, token); err != nil {
+	if err := s.cacheRepo.Update(ctx, token); err != nil {
 		s.logger.Withs(sctx.Fields{
 			"token_id": token.ID,
 			"error":    err,
