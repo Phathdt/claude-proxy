@@ -57,6 +57,10 @@ func (s *Scheduler) Start() error {
 		"schedule": "0 * * * * (every hour at minute 0)",
 	}).Info("In-memory job scheduler started")
 
+	// Trigger immediate token refresh on startup
+	s.logger.Info("Running initial token refresh on startup")
+	go s.RefreshTokensJob()
+
 	return nil
 }
 
