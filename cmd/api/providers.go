@@ -10,14 +10,14 @@ import (
 	"claude-proxy/config"
 	authservices "claude-proxy/modules/auth/application/services"
 	authinterfaces "claude-proxy/modules/auth/domain/interfaces"
+	authclients "claude-proxy/modules/auth/infrastructure/clients"
 	authjobs "claude-proxy/modules/auth/infrastructure/jobs"
 	authrepos "claude-proxy/modules/auth/infrastructure/repositories"
 	proxyservices "claude-proxy/modules/proxy/application/services"
 	proxyinterfaces "claude-proxy/modules/proxy/domain/interfaces"
-	"claude-proxy/modules/proxy/infrastructure/clients"
+	proxyclients "claude-proxy/modules/proxy/infrastructure/clients"
 	proxyjobs "claude-proxy/modules/proxy/infrastructure/jobs"
 	"claude-proxy/pkg/errors"
-	"claude-proxy/pkg/oauth"
 	"claude-proxy/pkg/telegram"
 
 	"github.com/gin-gonic/gin"
@@ -38,8 +38,8 @@ var CoreProviders = fx.Options(
 // CloveProviders provides Clove-specific domain providers
 var CloveProviders = fx.Options(
 	fx.Provide(
-		// OAuth service
-		NewOAuthService,
+		// OAuth client
+		NewOAuthClient,
 		// Infrastructure - Memory Repositories (annotated with group "memory")
 		fx.Annotate(
 			NewMemoryAccountRepository,
@@ -282,31 +282,17 @@ func NewTelegramClient(cfg *config.Config, appLogger sctx.Logger) *telegram.Clie
 	return telegram.NewClient(telegramConfig, logger)
 }
 
-// NewOAuthService creates a new OAuth service
-func NewOAuthService(cfg *config.Config) *oauth.Service {
-	return oauth.NewService(
+// NewOAuthClient creates a new OAuth client for Claude authentication
+func NewOAuthClient(cfg *config.Config, appLogger sctx.Logger) authinterfaces.OAuthClient {
+	logger := appLogger.Withs(sctx.Fields{"component": "oauth-client"})
+	return authclients.NewOAuthClient(
 		cfg.OAuth.ClientID,
 		cfg.OAuth.AuthorizeURL,
 		cfg.OAuth.TokenURL,
 		cfg.OAuth.RedirectURI,
 		cfg.OAuth.Scope,
+		logger,
 	)
-}
-
-// oauthRefreshAdapter adapts OAuth service to interfaces.TokenRefresher interface
-type oauthRefreshAdapter struct {
-	oauthService *oauth.Service
-}
-
-func (a *oauthRefreshAdapter) RefreshAccessToken(
-	ctx context.Context,
-	refreshToken string,
-) (string, string, int, error) {
-	tokenResp, err := a.oauthService.RefreshAccessToken(ctx, refreshToken)
-	if err != nil {
-		return "", "", 0, err
-	}
-	return tokenResp.AccessToken, tokenResp.RefreshToken, tokenResp.ExpiresIn, nil
 }
 
 // ============================================================================
@@ -396,10 +382,10 @@ func NewTokenService(
 func NewAccountService(
 	memoryRepo authinterfaces.AccountRepository,
 	jsonRepo authinterfaces.AccountRepository,
-	oauthService *oauth.Service,
+	oauthClient authinterfaces.OAuthClient,
 	appLogger sctx.Logger,
 ) authinterfaces.AccountService {
-	return authservices.NewAccountService(memoryRepo, jsonRepo, oauthService, appLogger)
+	return authservices.NewAccountService(memoryRepo, jsonRepo, oauthClient, appLogger)
 }
 
 // NewSessionService creates a new session service with hybrid storage
@@ -415,7 +401,7 @@ func NewSessionService(
 // NewProxyService creates a new proxy service (only injects auth services)
 func NewProxyService(
 	accountSvc authinterfaces.AccountService,
-	claudeClient *clients.ClaudeAPIClient,
+	claudeClient *proxyclients.ClaudeAPIClient,
 	sessionSvc authinterfaces.SessionService,
 	appLogger sctx.Logger,
 ) proxyinterfaces.ProxyService {
@@ -428,9 +414,9 @@ func NewProxyService(
 // ============================================================================
 
 // NewClaudeAPIClient creates a new Claude API client
-func NewClaudeAPIClient(cfg *config.Config, appLogger sctx.Logger) *clients.ClaudeAPIClient {
+func NewClaudeAPIClient(cfg *config.Config, appLogger sctx.Logger) *proxyclients.ClaudeAPIClient {
 	logger := appLogger.Withs(sctx.Fields{"component": "claude-api-client"})
-	return clients.NewClaudeAPIClient(cfg.Claude.BaseURL, cfg.Server.RequestTimeout, logger)
+	return proxyclients.NewClaudeAPIClient(cfg.Claude.BaseURL, cfg.Server.RequestTimeout, logger)
 }
 
 // ============================================================================
@@ -583,11 +569,11 @@ func NewAccountHandler(
 
 // NewOAuthHandler creates a new OAuth handler
 func NewOAuthHandler(
-	oauthService *oauth.Service,
+	oauthClient authinterfaces.OAuthClient,
 	accountSvc authinterfaces.AccountService,
 	cfg *config.Config,
 ) *handlers.OAuthHandler {
-	return handlers.NewOAuthHandler(oauthService, accountSvc, cfg.Claude.BaseURL)
+	return handlers.NewOAuthHandler(oauthClient, accountSvc, cfg.Claude.BaseURL)
 }
 
 // NewStatisticsHandler creates a new statistics handler

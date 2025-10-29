@@ -8,7 +8,6 @@ import (
 
 	"claude-proxy/modules/auth/domain/entities"
 	"claude-proxy/modules/auth/domain/interfaces"
-	"claude-proxy/pkg/oauth"
 
 	"github.com/google/uuid"
 	sctx "github.com/phathdt/service-context"
@@ -16,29 +15,29 @@ import (
 
 // AccountService implements account management with hybrid storage
 type AccountService struct {
-	memoryRepo   interfaces.AccountRepository
-	jsonRepo     interfaces.AccountRepository
-	oauthService *oauth.Service
-	dirty        bool
-	mu           sync.RWMutex
-	logger       sctx.Logger
+	memoryRepo  interfaces.AccountRepository
+	jsonRepo    interfaces.AccountRepository
+	oauthClient interfaces.OAuthClient
+	dirty       bool
+	mu          sync.RWMutex
+	logger      sctx.Logger
 }
 
 // NewAccountService creates a new account service
 func NewAccountService(
 	memoryRepo interfaces.AccountRepository,
 	jsonRepo interfaces.AccountRepository,
-	oauthService *oauth.Service,
+	oauthClient interfaces.OAuthClient,
 	appLogger sctx.Logger,
 ) interfaces.AccountService {
 	logger := appLogger.Withs(sctx.Fields{"component": "account-service"})
 
 	svc := &AccountService{
-		memoryRepo:   memoryRepo,
-		jsonRepo:     jsonRepo,
-		oauthService: oauthService,
-		dirty:        false,
-		logger:       logger,
+		memoryRepo:  memoryRepo,
+		jsonRepo:    jsonRepo,
+		oauthClient: oauthClient,
+		dirty:       false,
+		logger:      logger,
 	}
 
 	// Load from JSON into memory on init
@@ -150,7 +149,7 @@ func (s *AccountService) CreateAccount(
 	name, code, codeVerifier, orgID string,
 ) (*entities.Account, error) {
 	// Exchange code for tokens using PKCE code verifier
-	tokenResp, err := s.oauthService.ExchangeCodeForToken(ctx, code, codeVerifier)
+	tokenResp, err := s.oauthClient.ExchangeCodeForToken(ctx, code, codeVerifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
@@ -256,7 +255,7 @@ func (s *AccountService) GetValidToken(ctx context.Context, accountID string) (s
 
 // refreshToken refreshes account tokens
 func (s *AccountService) refreshToken(ctx context.Context, account *entities.Account) error {
-	tokenResp, err := s.oauthService.RefreshAccessToken(ctx, account.RefreshToken)
+	tokenResp, err := s.oauthClient.RefreshAccessToken(ctx, account.RefreshToken)
 	if err != nil {
 		account.UpdateRefreshError(err.Error())
 		s.memoryRepo.Update(ctx, account)

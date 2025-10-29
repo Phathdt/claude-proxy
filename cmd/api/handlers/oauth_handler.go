@@ -11,29 +11,29 @@ import (
 
 	"claude-proxy/modules/auth/application/dto"
 	"claude-proxy/modules/auth/domain/interfaces"
-	"claude-proxy/pkg/oauth"
+	"claude-proxy/modules/auth/infrastructure/clients"
 )
 
 // OAuthHandler handles OAuth-related endpoints
 type OAuthHandler struct {
-	oauthService  *oauth.Service
+	oauthClient   interfaces.OAuthClient
 	accountSvc    interfaces.AccountService
 	claudeBaseURL string
-	challenges    map[string]*oauth.PKCEChallenge // state -> challenge
+	challenges    map[string]*clients.PKCEChallenge // state -> challenge
 	challengesMu  sync.Mutex
 }
 
 // NewOAuthHandler creates a new OAuth handler
 func NewOAuthHandler(
-	oauthService *oauth.Service,
+	oauthClient interfaces.OAuthClient,
 	accountSvc interfaces.AccountService,
 	claudeBaseURL string,
 ) *OAuthHandler {
 	return &OAuthHandler{
-		oauthService:  oauthService,
+		oauthClient:   oauthClient,
 		accountSvc:    accountSvc,
 		claudeBaseURL: claudeBaseURL,
-		challenges:    make(map[string]*oauth.PKCEChallenge),
+		challenges:    make(map[string]*clients.PKCEChallenge),
 	}
 }
 
@@ -44,7 +44,7 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 	orgID := c.Query("org_id")
 
 	// Generate PKCE challenge
-	challenge, err := h.oauthService.GeneratePKCEChallenge()
+	challenge, err := h.oauthClient.GeneratePKCEChallenge()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -69,7 +69,7 @@ func (h *OAuthHandler) GetAuthorizeURL(c *gin.Context) {
 	}()
 
 	// Build authorization URL with organization ID if provided
-	authURL := h.oauthService.BuildAuthorizationURL(challenge, orgID)
+	authURL := h.oauthClient.BuildAuthorizationURL(challenge, orgID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"authorization_url": authURL,

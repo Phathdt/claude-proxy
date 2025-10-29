@@ -1,4 +1,4 @@
-package oauth
+package clients
 
 import (
 	"context"
@@ -16,8 +16,8 @@ import (
 	sctx "github.com/phathdt/service-context"
 )
 
-// Service handles OAuth 2.0 operations
-type Service struct {
+// OAuthClient handles OAuth 2.0 operations for Claude authentication
+type OAuthClient struct {
 	clientID     string
 	authorizeURL string
 	tokenURL     string
@@ -42,9 +42,9 @@ type PKCEChallenge struct {
 	State         string
 }
 
-// NewService creates a new OAuth service
-func NewService(clientID, authorizeURL, tokenURL, redirectURI, scope string) *Service {
-	return &Service{
+// NewOAuthClient creates a new OAuth client for Claude authentication
+func NewOAuthClient(clientID, authorizeURL, tokenURL, redirectURI, scope string, logger sctx.Logger) *OAuthClient {
+	return &OAuthClient{
 		clientID:     clientID,
 		authorizeURL: authorizeURL,
 		tokenURL:     tokenURL,
@@ -53,12 +53,12 @@ func NewService(clientID, authorizeURL, tokenURL, redirectURI, scope string) *Se
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		logger: sctx.GlobalLogger().GetLogger("oauth"),
+		logger: logger,
 	}
 }
 
 // GeneratePKCEChallenge generates PKCE code verifier and challenge
-func (s *Service) GeneratePKCEChallenge() (*PKCEChallenge, error) {
+func (c *OAuthClient) GeneratePKCEChallenge() (*PKCEChallenge, error) {
 	// Generate code verifier (43-128 characters)
 	verifier, err := generateRandomString(64)
 	if err != nil {
@@ -84,33 +84,33 @@ func (s *Service) GeneratePKCEChallenge() (*PKCEChallenge, error) {
 
 // BuildAuthorizationURL builds the OAuth authorization URL
 // If organizationID is provided, it's added as organization_uuid query parameter
-func (s *Service) BuildAuthorizationURL(challenge *PKCEChallenge, organizationID string) string {
+func (c *OAuthClient) BuildAuthorizationURL(challenge *PKCEChallenge, organizationID string) string {
 	params := url.Values{}
 	params.Set("response_type", "code")
-	params.Set("client_id", s.clientID)
+	params.Set("client_id", c.clientID)
 
 	// Add organization_uuid as query parameter if provided
 	if organizationID != "" {
 		params.Set("organization_uuid", organizationID)
 	}
 
-	params.Set("redirect_uri", s.redirectURI)
+	params.Set("redirect_uri", c.redirectURI)
 
 	// Add scope if configured
-	if s.scope != "" {
-		params.Set("scope", s.scope)
+	if c.scope != "" {
+		params.Set("scope", c.scope)
 	}
 
 	params.Set("state", challenge.State)
 	params.Set("code_challenge", challenge.CodeChallenge)
 	params.Set("code_challenge_method", "S256")
 
-	return fmt.Sprintf("%s?%s", s.authorizeURL, params.Encode())
+	return fmt.Sprintf("%s?%s", c.authorizeURL, params.Encode())
 }
 
 // ExchangeCodeForToken exchanges authorization code for access and refresh tokens
 // Code format: "auth_code#state" - the state is appended after # if present
-func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier string) (*TokenResponse, error) {
+func (c *OAuthClient) ExchangeCodeForToken(ctx context.Context, code, codeVerifier string) (*TokenResponse, error) {
 	// Split code and state (Python format: code contains "auth_code#state")
 	parts := strings.Split(code, "#")
 	authCode := parts[0]
@@ -124,8 +124,8 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 	payload := map[string]string{
 		"code":          authCode,
 		"grant_type":    "authorization_code",
-		"client_id":     s.clientID,
-		"redirect_uri":  s.redirectURI,
+		"client_id":     c.clientID,
+		"redirect_uri":  c.redirectURI,
 		"code_verifier": codeVerifier,
 	}
 
@@ -140,19 +140,19 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 	}
 
 	// Debug logging
-	s.logger.Withs(sctx.Fields{
-		"url":     s.tokenURL,
+	c.logger.Withs(sctx.Fields{
+		"url":     c.tokenURL,
 		"payload": string(jsonData),
 	}).Info("Sending token exchange request to Claude OAuth API")
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.tokenURL, strings.NewReader(string(jsonData)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
 	}
@@ -172,22 +172,22 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code, codeVerifier s
 }
 
 // RefreshAccessToken uses refresh token to get a new access token
-func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
-	s.logger.Withs(sctx.Fields{
+func (c *OAuthClient) RefreshAccessToken(ctx context.Context, refreshToken string) (*TokenResponse, error) {
+	c.logger.Withs(sctx.Fields{
 		"action": "refresh_token_start",
-		"url":    s.tokenURL,
+		"url":    c.tokenURL,
 	}).Debug("Starting OAuth2 token refresh")
 
 	// Build JSON payload (matching Python implementation)
 	payload := map[string]string{
 		"grant_type":    "refresh_token",
 		"refresh_token": refreshToken,
-		"client_id":     s.clientID,
+		"client_id":     c.clientID,
 	}
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		s.logger.Withs(sctx.Fields{
+		c.logger.Withs(sctx.Fields{
 			"action": "refresh_token_error",
 			"error":  err.Error(),
 			"stage":  "marshal_request",
@@ -195,9 +195,9 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 		return nil, fmt.Errorf("failed to marshal refresh request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.tokenURL, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.tokenURL, strings.NewReader(string(jsonData)))
 	if err != nil {
-		s.logger.Withs(sctx.Fields{
+		c.logger.Withs(sctx.Fields{
 			"action": "refresh_token_error",
 			"error":  err.Error(),
 			"stage":  "create_request",
@@ -207,14 +207,14 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 
 	req.Header.Set("Content-Type", "application/json")
 
-	s.logger.Withs(sctx.Fields{
+	c.logger.Withs(sctx.Fields{
 		"action": "refresh_token_request_sent",
-		"url":    s.tokenURL,
+		"url":    c.tokenURL,
 	}).Info("Sending token refresh request to OAuth server")
 
-	resp, err := s.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		s.logger.Withs(sctx.Fields{
+		c.logger.Withs(sctx.Fields{
 			"action": "refresh_token_error",
 			"error":  err.Error(),
 			"stage":  "http_request",
@@ -225,7 +225,7 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		s.logger.Withs(sctx.Fields{
+		c.logger.Withs(sctx.Fields{
 			"action":      "refresh_token_error",
 			"error":       err.Error(),
 			"stage":       "read_response",
@@ -235,23 +235,23 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 	}
 
 	// Log the entire response for debugging
-	s.logger.Withs(sctx.Fields{
+	c.logger.Withs(sctx.Fields{
 		"action":      "refresh_token_response",
 		"status_code": resp.StatusCode,
 	}).Debug("=== OAUTH2 TOKEN REFRESH RESPONSE START ===")
 
-	s.logger.Withs(sctx.Fields{
+	c.logger.Withs(sctx.Fields{
 		"headers": resp.Header,
 	}).Debug("Response Headers")
 
-	s.logger.Withs(sctx.Fields{
+	c.logger.Withs(sctx.Fields{
 		"body": string(body),
 	}).Debug("Response Body")
 
-	s.logger.Debug("=== OAUTH2 TOKEN REFRESH RESPONSE END ===")
+	c.logger.Debug("=== OAUTH2 TOKEN REFRESH RESPONSE END ===")
 
 	if resp.StatusCode != http.StatusOK {
-		s.logger.Withs(sctx.Fields{
+		c.logger.Withs(sctx.Fields{
 			"action":      "refresh_token_error",
 			"status_code": resp.StatusCode,
 			"error_body":  string(body),
@@ -262,7 +262,7 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 
 	var tokenResp TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		s.logger.Withs(sctx.Fields{
+		c.logger.Withs(sctx.Fields{
 			"action":        "refresh_token_error",
 			"error":         err.Error(),
 			"stage":         "decode_response",
@@ -271,7 +271,7 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
-	s.logger.Withs(sctx.Fields{
+	c.logger.Withs(sctx.Fields{
 		"action":      "refresh_token_success",
 		"expires_in":  tokenResp.ExpiresIn,
 		"token_type":  tokenResp.TokenType,
@@ -279,49 +279,6 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 	}).Info("Successfully refreshed OAuth2 tokens")
 
 	return &tokenResp, nil
-}
-
-// GetOrganizationUUID fetches the organization UUID from Claude API
-func (s *Service) GetOrganizationUUID(ctx context.Context, accessToken, claudeBaseURL string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/v1/organizations", claudeBaseURL), nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create organizations request: %w", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to get organizations: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("get organizations failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var result struct {
-		Data []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"data"`
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read organizations response: %w", err)
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("failed to decode organizations response: %w", err)
-	}
-
-	if len(result.Data) == 0 {
-		return "", fmt.Errorf("no organizations found for this account")
-	}
-
-	return result.Data[0].ID, nil
 }
 
 // generateRandomString generates a cryptographically secure random string

@@ -66,7 +66,6 @@ claude-proxy/
 ├── config/               # Configuration management (Viper)
 ├── pkg/                  # Shared packages
 │   ├── errors/          # Custom AppError with HTTP context
-│   ├── oauth/           # OAuth 2.0 service & PKCE
 │   └── telegram/        # Optional Telegram notifications
 ├── modules/             # Domain modules (see DDD structure above)
 ├── cli/                 # CLI command implementations
@@ -313,8 +312,9 @@ cd frontend && pnpm format:check
 4. Panic-based error handling: `panic(errors.NewBadRequestError(...))`
 
 **Working with OAuth & Token Refresh:**
-- OAuth service: `pkg/oauth/oauth.go` - Handles PKCE, token exchange, refresh
-- Account management: `modules/proxy/application/services/account_service.go`
+- OAuth client: `modules/auth/infrastructure/clients/oauth_client.go` - Handles PKCE, token exchange, refresh
+- OAuth interface: `modules/auth/domain/interfaces/oauth_client.go` - OAuth client interface
+- Account management: `modules/auth/application/services/account_service.go`
   - `GetValidToken(ctx, accountID)` - Returns valid token, auto-refreshes if needed
   - `refreshToken(ctx, account)` - Refreshes access token from refresh token
 - Token refresh triggers:
